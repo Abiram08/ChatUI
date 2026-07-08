@@ -10,25 +10,33 @@ Supported providers:
 """
 import os
 import json
+import time
+import logging
 import asyncio
 import uvicorn
 from pathlib import Path
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Depends
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+from typing import Optional
 
 from .tools import ToolRegistry, ComponentRegistry
 from .themes import get_css_vars, get_themes_json, THEME_NAMES
+from .session import SessionState
+from .widgets import Widget
 
 load_dotenv()
+
+logger = logging.getLogger("chatui")
 
 UI_PATH = Path(__file__).parent / "ui" / "index.html"
 
 # ── Provider catalogue ────────────────────────────────────────────────────────
 
 _PROVIDERS = {
-    #  name         default model                 base_url (None = provider default)
-    "anthropic": ("claude-sonnet-4-20250514",  None),
+    "anthropic": ("claude-sonnet-4-20250514", None),
     "ollama":    ("llama3",                    "http://localhost:11434/v1"),
     "groq":      ("llama3-8b-8192",            "https://api.groq.com/openai/v1"),
     "openai":    ("gpt-4o",                    None),
@@ -38,7 +46,7 @@ _ENV_KEYS = {
     "anthropic": "ANTHROPIC_API_KEY",
     "groq":      "GROQ_API_KEY",
     "openai":    "OPENAI_API_KEY",
-    "ollama":    None,   # no key required
+    "ollama":    None,
 }
 
 DEFAULT_SYSTEM = """You are a helpful, thoughtful AI assistant.
@@ -50,7 +58,6 @@ Use markdown formatting where appropriate:
 When you have tools available, use them to answer questions accurately.
 Be concise and focused."""
 
-
 # ── Small helper for OpenAI-style tool call accumulation ─────────────────────
 
 class _ToolCall:
@@ -59,6 +66,26 @@ class _ToolCall:
         self.id    = id
         self.name  = name
         self.input = input
+
+
+# ── Rate limiter ─────────────────────────────────────────────────────────────
+
+class _RateLimiter:
+    def __init__(self, max_requests: int = 20, window: float = 60.0):
+        self._max = max_requests
+        self._window = window
+        self._hits: dict[str, list[float]] = {}
+
+    def check(self, key: str) -> bool:
+        now = time.time()
+        hits = self._hits.get(key, [])
+        hits = [t for t in hits if now - t < self._window]
+        if len(hits) >= self._max:
+            self._hits[key] = hits
+            return False
+        hits.append(now)
+        self._hits[key] = hits
+        return True
 
 
 # ── ChatUI ───────────────────────────────────────────────────────────────────
@@ -93,22 +120,40 @@ class ChatUI:
         def my_data():
             "Current dataset."
             return df.to_dict()
+
+    Session state:
+        @app.tool
+        def remember(key: str, value: str):
+            app.session[key] = value
+            return {"ok": True}
+
+    Widgets:
+        from chatui.widgets import button, text_input, progress
+
+        @app.tool
+        def ask_confirm(message: str):
+            return button("Confirm", key="confirm"), button("Cancel", key="cancel", variant="danger")
     """
 
     def __init__(
         self,
-        provider:      str        = "anthropic",
-        api_key:       str        = None,
-        host:          str        = "0.0.0.0",
-        port:          int        = 8000,
-        system_prompt: str        = None,
-        title:         str        = "ChatUI",
-        logo:          str        = "◆",
-        subtitle:      str        = "",
-        chips:         list       = None,
-        theme:         str        = "tokyonight",
-        model:         str        = None,
-        open_browser:  bool       = True,
+        provider:       str  = "anthropic",
+        api_key:        str  = None,
+        host:           str  = "0.0.0.0",
+        port:           int  = 8000,
+        system_prompt:  str  = None,
+        title:          str  = "ChatUI",
+        logo:           str  = "◆",
+        subtitle:       str  = "",
+        chips:          list = None,
+        theme:          str  = "manuscript",
+        model:          str  = None,
+        welcome_title:  str  = "What shall we<br>work on?",
+        open_browser:   bool = True,
+        cors_origins:   list = None,
+        rate_limit:     int  = 0,
+        log_level:      str  = "info",
+        auth_key:       str  = None,
     ):
         p = provider.lower()
         if p not in _PROVIDERS:
@@ -124,17 +169,34 @@ class ChatUI:
         self.logo          = logo
         self.subtitle      = subtitle
         self.chips         = chips
-        self.theme         = theme if theme in THEME_NAMES else "tokyonight"
+        self.theme         = theme if theme in THEME_NAMES else "manuscript"
+        self.welcome_title = welcome_title
         self.open_browser  = open_browser
+        self.cors_origins  = cors_origins or ["*"]
+        self.auth_key      = auth_key
         self._registry     = ToolRegistry()
         self._components   = ComponentRegistry()
         self._context_fn   = None
+        self._on_handlers: dict[str, list] = {}
+        self._rate_limiter = _RateLimiter(max_requests=rate_limit) if rate_limit > 0 else None
+        self._session_proto = SessionState()
+
+        logging.basicConfig(
+            level=getattr(logging, log_level.upper(), logging.INFO),
+            format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        )
 
         default_model, base_url = _PROVIDERS[p]
         self.model = model or default_model
 
         self._client = self._build_client(p, api_key, base_url)
         self.app     = self._build_fastapi()
+
+    # ── Session access ─────────────────────────────────────────────────
+
+    @property
+    def session(self) -> SessionState:
+        return self._session_proto
 
     # ── Client setup ──────────────────────────────────────────────────
 
@@ -144,7 +206,6 @@ class ChatUI:
             key = api_key or os.getenv("ANTHROPIC_API_KEY")
             return Anthropic(api_key=key) if key else None
 
-        # All other providers use the OpenAI-compatible interface
         try:
             from openai import OpenAI as _OAI
         except ImportError:
@@ -160,7 +221,6 @@ class ChatUI:
         if provider == "groq":
             return _OAI(api_key=key or "missing", base_url=base_url)
 
-        # openai
         return _OAI(api_key=key) if key else None
 
     # ── Decorators ────────────────────────────────────────────────────
@@ -202,12 +262,25 @@ class ChatUI:
         self._context_fn = fn
         return fn
 
+    def on(self, event: str):
+        """Register an event handler.
+
+        @app.on("button_click")
+        def handle_click(data: dict):
+            key = data["key"]
+            app.session[key] = True
+            ...
+        """
+        def decorator(fn):
+            self._on_handlers.setdefault(event, []).append(fn)
+            return fn
+        return decorator
+
     # ── Runtime system prompt ─────────────────────────────────────────
 
     def _effective_system(self) -> str:
         parts = [self.system_prompt]
 
-        # Inject live context
         if self._context_fn:
             try:
                 data  = self._context_fn()
@@ -216,7 +289,6 @@ class ChatUI:
             except Exception as e:
                 parts.append(f"\n\n[Context error: {e}]")
 
-        # Tell the AI how to invoke registered components
         if self._components.has_any():
             names = ", ".join(f'"{n}"' for n in self._components.names())
             parts.append(
@@ -231,7 +303,6 @@ class ChatUI:
     # ── Component detection ───────────────────────────────────────────
 
     def _check_component(self, text: str) -> tuple[str, str] | None:
-        """If text is a component JSON, return (name, rendered_html). Else None."""
         stripped = text.strip()
         if not stripped.startswith("{"):
             return None
@@ -248,23 +319,90 @@ class ChatUI:
     # ── FastAPI app ───────────────────────────────────────────────────
 
     def _build_fastapi(self) -> FastAPI:
-        fast = FastAPI(title=self.title)
+
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            logger.info(f"ChatUI starting — {self.provider}/{self.model} on :{self.port}")
+            yield
+            logger.info("ChatUI shutting down")
+
+        fast = FastAPI(title=self.title, lifespan=lifespan)
+
+        # CORS
+        if self.cors_origins:
+            fast.add_middleware(
+                CORSMiddleware,
+                allow_origins=self.cors_origins,
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+
+        # Auth middleware
+        if self.auth_key:
+            @fast.middleware("http")
+            async def auth_middleware(request: Request, call_next):
+                if request.url.path in ("/", "/health", "/favicon.ico"):
+                    return await call_next(request)
+                auth = request.headers.get("Authorization", "")
+                if auth != f"Bearer {self.auth_key}":
+                    return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+                return await call_next(request)
+
+        # Rate limit middleware
+        if self._rate_limiter:
+            @fast.middleware("http")
+            async def rate_limit_middleware(request: Request, call_next):
+                if request.url.path == "/ws":
+                    return await call_next(request)
+                client = request.client.host if request.client else "unknown"
+                if not self._rate_limiter.check(client):
+                    logger.warning(f"Rate limit hit for {client}")
+                    return JSONResponse(
+                        {"detail": "Too many requests. Slow down."}, status_code=429
+                    )
+                return await call_next(request)
+
+        # Request logging
+        @fast.middleware("http")
+        async def logging_middleware(request: Request, call_next):
+            start = time.time()
+            response = await call_next(request)
+            duration = time.time() - start
+            logger.debug(f"{request.method} {request.url.path} → {response.status_code} ({duration:.3f}s)")
+            return response
 
         @fast.get("/")
         async def root():
             import json as _json
             html = UI_PATH.read_text(encoding="utf-8")
-            html = html.replace("{{TITLE}}",        self.title)
-            html = html.replace("{{LOGO}}",         self.logo)
-            html = html.replace("{{SUBTITLE}}",     self.subtitle)
-            html = html.replace("{{ACTIVE_THEME}}", self.theme)
-            html = html.replace("'{{CHIPS_JSON}}'", _json.dumps(self.chips or []))
-            html = html.replace("'{{THEMES_JSON}}'", get_themes_json())
-            html = html.replace("/*{{THEME_VARS}}*/", get_css_vars(self.theme))
+            html = html.replace("{{TITLE}}",         self.title)
+            html = html.replace("{{LOGO}}",          self.logo)
+            html = html.replace("{{SUBTITLE}}",      self.subtitle)
+            html = html.replace("{{WELCOME_TITLE}}", self.welcome_title)
+            html = html.replace("{{ACTIVE_THEME}}",  self.theme)
+            html = html.replace("'{{CHIPS_JSON}}'",  _json.dumps(self.chips or []))
+            html = html.replace("'{{THEMES_JSON}}'",  get_themes_json())
+            html = html.replace("/*{{THEME_VARS}}*/",  get_css_vars(self.theme))
             return HTMLResponse(content=html)
+
+        @fast.get("/health")
+        async def health():
+            return {
+                "status": "ok",
+                "version": "0.0.1",
+                "provider": self.provider,
+                "model": self.model,
+                "tools": len(self._registry._tools),
+                "components": len(self._components._renderers),
+            }
 
         @fast.websocket("/ws")
         async def ws_endpoint(websocket: WebSocket):
+            auth_header = websocket.headers.get("authorization", "")
+            if self.auth_key and auth_header != f"Bearer {self.auth_key}":
+                await websocket.close(code=4001, reason="Unauthorized")
+                return
             await self._handle_ws(websocket)
 
         return fast
@@ -313,6 +451,7 @@ class ChatUI:
                             tool_uses.append(block)
 
             except Exception as e:
+                logger.error(f"Anthropic stream error: {e}")
                 await send({"type": "error", "content": str(e)}); return
 
             if stop[0]:
@@ -342,8 +481,15 @@ class ChatUI:
             tool_results = []
             for tu in tool_uses:
                 await send({"type": "tool_call", "id": tu.id, "name": tu.name, "inputs": tu.input})
-                res     = self._registry.execute(tu.name, tu.input)
+                try:
+                    res     = self._registry.execute(tu.name, tu.input)
+                except Exception as e:
+                    res     = {"error": str(e)}
+                    logger.error(f"Tool '{tu.name}' failed: {e}")
                 res_str = self._registry.to_json(res)
+                # If tool returned widgets, send them
+                if isinstance(res, tuple) and all(isinstance(w, Widget) for w in res):
+                    await send({"type": "widgets", "widgets": [w.to_payload() for w in res]})
                 await send({"type": "tool_result", "id": tu.id, "name": tu.name, "result": res_str})
                 tool_results.append({"type": "tool_result", "tool_use_id": tu.id, "content": res_str})
 
@@ -368,7 +514,7 @@ class ChatUI:
                 kwargs["tool_choice"] = "auto"
 
             full_text      = ""
-            tc_raw: dict   = {}   # index → {id, name, arguments}
+            tc_raw: dict   = {}
             finish_reason  = "stop"
 
             try:
@@ -376,7 +522,6 @@ class ChatUI:
                 for chunk in stream:
                     if stop[0]: break
 
-                    # Final chunk from some providers carries usage
                     if hasattr(chunk, "usage") and chunk.usage:
                         total_in  = getattr(chunk.usage, "prompt_tokens",     0) or total_in
                         total_out = getattr(chunk.usage, "completion_tokens",  0) or total_out
@@ -416,12 +561,12 @@ class ChatUI:
                         "Start it with:  ollama serve\n"
                         "Pull a model:   ollama pull llama3"
                     )
+                logger.error(f"OpenAI stream error: {e}")
                 await send({"type": "error", "content": msg}); return
 
             if stop[0]:
                 await send({"type": "stopped"}); return
 
-            # Parse accumulated tool calls
             tool_uses: list[_ToolCall] = []
             for idx in sorted(tc_raw):
                 raw = tc_raw[idx]
@@ -437,14 +582,12 @@ class ChatUI:
 
             stop_reason = "tool_use" if (finish_reason == "tool_calls" and tool_uses) else "end_turn"
 
-            # Component check
             if self._components.has_any() and full_text.strip():
                 result = self._check_component(full_text)
                 if result:
                     name, html = result
                     await send({"type": "component", "name": name, "html": html})
 
-            # Append to history (OpenAI format)
             if full_text or tool_uses:
                 asst: dict = {"role": "assistant", "content": full_text or None}
                 if tool_uses:
@@ -462,13 +605,17 @@ class ChatUI:
                 await send({"type": "end", "usage": {"input": total_in, "output": total_out}})
                 return
 
-            # Execute tools
             for tu in tool_uses:
                 await send({"type": "tool_call", "id": tu.id, "name": tu.name, "inputs": tu.input})
-                res     = self._registry.execute(tu.name, tu.input)
+                try:
+                    res     = self._registry.execute(tu.name, tu.input)
+                except Exception as e:
+                    res     = {"error": str(e)}
+                    logger.error(f"Tool '{tu.name}' failed: {e}")
                 res_str = self._registry.to_json(res)
+                if isinstance(res, tuple) and all(isinstance(w, Widget) for w in res):
+                    await send({"type": "widgets", "widgets": [w.to_payload() for w in res]})
                 await send({"type": "tool_result", "id": tu.id, "name": tu.name, "result": res_str})
-                # OpenAI tool result format
                 history.append({"role": "tool", "tool_call_id": tu.id, "content": res_str})
 
             await send({"type": "start_again"})
@@ -487,11 +634,18 @@ class ChatUI:
         await websocket.accept()
         history: list = []
         stop    = [False]
+        session = SessionState()
 
         async def send(payload: dict):
-            await websocket.send_text(json.dumps(payload))
+            await websocket.send_text(json.dumps(payload, default=str))
 
-        # Announce registered tools to the frontend
+        await send({
+            "type":     "config",
+            "provider": self.provider,
+            "model":    self.model,
+            "session":  session.id,
+        })
+
         if self._registry.has_tools():
             tools_info = [
                 {"name": s["name"], "description": s.get("description", "")}
@@ -499,9 +653,10 @@ class ChatUI:
             ]
             await send({"type": "tools_ready", "tools": tools_info})
 
-        # Announce registered components to the frontend
         if self._components.has_any():
             await send({"type": "components_ready", "components": self._components.names()})
+
+        await send({"type": "session_state", "data": session.to_dict()})
 
         try:
             while True:
@@ -523,8 +678,44 @@ class ChatUI:
                     await send({"type": "system_updated"})
                     continue
 
+                if action == "set_session":
+                    key = payload.get("key")
+                    val = payload.get("value")
+                    if key is not None:
+                        session[key] = val
+                        await send({"type": "session_updated", "key": key, "value": val})
+                    continue
+
+                if action == "get_session":
+                    await send({"type": "session_state", "data": session.to_dict()})
+                    continue
+
+                if action == "widget_event":
+                    event_type = payload.get("event", "")
+                    widget_id  = payload.get("widget_id", "")
+                    widget_key = payload.get("key", "")
+                    value      = payload.get("value")
+                    data       = payload.get("data", {})
+
+                    if event_type == "button_click" and widget_key in self._on_handlers:
+                        for handler in self._on_handlers.get(widget_key, []):
+                            try:
+                                result = handler(data or {"key": widget_key})
+                                if isinstance(result, (str, dict, list)):
+                                    await send({"type": "token", "content": json.dumps(result, default=str)})
+                                    await send({"type": "end", "usage": {"input": 0, "output": 0}})
+                            except Exception as e:
+                                await send({"type": "error", "content": str(e)})
+
+                    for handler in self._on_handlers.get(f"__{event_type}__", []):
+                        try:
+                            handler(data or {"widget_id": widget_id, "key": widget_key, "value": value})
+                        except Exception as e:
+                            logger.error(f"Event handler error: {e}")
+
+                    continue
+
                 if action == "regenerate":
-                    # Strip back to last real user string message
                     while history:
                         last = history[-1]
                         if last["role"] == "user" and isinstance(last.get("content"), str):
@@ -561,6 +752,7 @@ class ChatUI:
         except WebSocketDisconnect:
             pass
         except Exception as err:
+            logger.exception(f"WebSocket error: {err}")
             try:
                 await send({"type": "error", "content": str(err)})
             except Exception:
@@ -574,26 +766,36 @@ class ChatUI:
         p = port or self.port
 
         if self.open_browser:
-            import threading, webbrowser, time
+            import threading, webbrowser
             def _open():
-                time.sleep(1.2)
+                import time
+                time.sleep(1.0)
                 webbrowser.open(f"http://localhost:{p}")
             threading.Thread(target=_open, daemon=True).start()
 
         tool_count = len(self._registry._tools)
         comp_count = len(self._components._renderers)
 
-        print(f"\n  ChatUI v0.2  |  {self.provider} / {self.model}  |  {self.theme} theme")
+        print(f"\n  ChatUI v0.0.1  |  {self.provider} / {self.model}  |  {self.theme} theme")
         print(f"  Running at   http://localhost:{p}")
+        print(f"  Health check http://localhost:{p}/health")
+        if self.auth_key:
+            print(f"  Auth          enabled (Bearer token)")
+        if self._rate_limiter:
+            print(f"  Rate limit    {self._rate_limiter._max} req/min")
         if tool_count:
-            print(f"  Tools        {tool_count}: {', '.join(self._registry._tools)}")
+            print(f"  Tools         {tool_count}: {', '.join(self._registry._tools)}")
         if comp_count:
-            print(f"  Components   {comp_count}: {', '.join(self._components._renderers)}")
+            print(f"  Components    {comp_count}: {', '.join(self._components._renderers)}")
         if self._context_fn:
-            print(f"  Context      {self._context_fn.__name__}()")
+            print(f"  Context       {self._context_fn.__name__}()")
+        if self._on_handlers:
+            for evt, handlers in self._on_handlers.items():
+                names = ", ".join(h.__name__ for h in handlers)
+                print(f"  On[{evt}]      {names}")
         print()
 
-        uvicorn.run(self.app, host=h, port=p, **kwargs)
+        uvicorn.run(self.app, host=h, port=p, log_level="warning", **kwargs)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
