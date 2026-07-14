@@ -1,296 +1,237 @@
 """
 chatui/themes.py
 Perceptually uniform themes built on OKLCH.
-Every palette is tuned for a specific mood and semantic role.
 
-All themes meet WCAG AA contrast requirements for text readability.
+Design rules (AGENTS.md):
+- Tinted neutrals only — never pure black/white
+- One dominant accent per theme (~60% of colored UI)
+- Semantic colors for state only
+- WCAG AA contrast for body text and UI controls
 """
+from __future__ import annotations
+
 import json
+from typing import Dict, Mapping
 
-THEMES = {
-
-    # ── Manuscript — warm paper, espresso type, terracotta accent ───────
-    "manuscript": {
-        "mode": "light",
-        "--bg-base":        "oklch(97.5% 0.01 75)",
-        "--bg-surface":     "oklch(100%  0 0)",
-        "--bg-elevated":    "oklch(96% 0.01 75)",
-        "--bg-user":        "oklch(93% 0.02 75)",
-        "--bg-code":        "oklch(21% 0.01 75)",
-        "--text-primary":   "oklch(24% 0.01 55)",
-        "--text-secondary": "oklch(48% 0.02 55)",
-        "--text-tertiary":  "oklch(62% 0.015 55)",
-        "--accent":         "oklch(55% 0.15 45)",
-        "--accent-hover":   "oklch(48% 0.16 45)",
-        "--accent-ghost":   "oklch(55% 0.15 45 / 0.08)",
-        "--accent-glow":    "oklch(55% 0.15 45 / 0.18)",
-        "--border":         "oklch(24% 0.01 55 / 0.10)",
-        "--border-strong":  "oklch(24% 0.01 55 / 0.18)",
-        "--border-focus":   "oklch(55% 0.15 45 / 0.55)",
-        "--tool-text":      "oklch(52% 0.12 150)",
-        "--tool-bg":        "oklch(52% 0.12 150 / 0.06)",
-        "--tool-border":    "oklch(52% 0.12 150 / 0.20)",
-        "--error":          "oklch(55% 0.18 25)",
-        "--success":        "oklch(55% 0.12 145)",
-        "--warning":        "oklch(68% 0.13 85)",
-        "--font-serif":     "'Cormorant Garamond', Georgia, serif",
-        "--font-sans":      "'Sora', system-ui, sans-serif",
-        "--font-mono":      "'JetBrains Mono', 'Fira Code', monospace",
-    },
-
-    # ── Atoll — cool light, salt white, deep teal accent ────────────────
-    "atoll": {
-        "mode": "light",
-        "--bg-base":        "oklch(97% 0.01 230)",
-        "--bg-surface":     "oklch(100% 0 0)",
-        "--bg-elevated":    "oklch(95% 0.012 230)",
-        "--bg-user":        "oklch(92% 0.02 230)",
-        "--bg-code":        "oklch(22% 0.02 240)",
-        "--text-primary":   "oklch(22% 0.02 230)",
-        "--text-secondary": "oklch(45% 0.025 230)",
-        "--text-tertiary":  "oklch(60% 0.02 230)",
-        "--accent":         "oklch(55% 0.12 205)",
-        "--accent-hover":   "oklch(48% 0.13 205)",
-        "--accent-ghost":   "oklch(55% 0.12 205 / 0.08)",
-        "--accent-glow":    "oklch(55% 0.12 205 / 0.18)",
-        "--border":         "oklch(22% 0.02 230 / 0.10)",
-        "--border-strong":  "oklch(22% 0.02 230 / 0.18)",
-        "--border-focus":   "oklch(55% 0.12 205 / 0.55)",
-        "--tool-text":      "oklch(52% 0.11 170)",
-        "--tool-bg":        "oklch(52% 0.11 170 / 0.06)",
-        "--tool-border":    "oklch(52% 0.11 170 / 0.20)",
-        "--error":          "oklch(55% 0.18 25)",
-        "--success":        "oklch(55% 0.12 145)",
-        "--warning":        "oklch(68% 0.13 85)",
-        "--font-serif":     "'Cormorant Garamond', Georgia, serif",
-        "--font-sans":      "'Sora', system-ui, sans-serif",
-        "--font-mono":      "'JetBrains Mono', 'Fira Code', monospace",
-    },
-
-    # ── Grain — warm beige, olive accent, organic ───────────────────────
-    "grain": {
-        "mode": "light",
-        "--bg-base":        "oklch(94% 0.02 95)",
-        "--bg-surface":     "oklch(98% 0.01 95)",
-        "--bg-elevated":    "oklch(92% 0.015 95)",
-        "--bg-user":        "oklch(88% 0.02 95)",
-        "--bg-code":        "oklch(24% 0.015 90)",
-        "--text-primary":   "oklch(23% 0.02 90)",
-        "--text-secondary": "oklch(43% 0.02 90)",
-        "--text-tertiary":  "oklch(58% 0.015 90)",
-        "--accent":         "oklch(55% 0.12 125)",
-        "--accent-hover":   "oklch(47% 0.13 125)",
-        "--accent-ghost":   "oklch(55% 0.12 125 / 0.08)",
-        "--accent-glow":    "oklch(55% 0.12 125 / 0.18)",
-        "--border":         "oklch(23% 0.02 90 / 0.11)",
-        "--border-strong":  "oklch(23% 0.02 90 / 0.19)",
-        "--border-focus":   "oklch(55% 0.12 125 / 0.55)",
-        "--tool-text":      "oklch(52% 0.12 160)",
-        "--tool-bg":        "oklch(52% 0.12 160 / 0.06)",
-        "--tool-border":    "oklch(52% 0.12 160 / 0.20)",
-        "--error":          "oklch(54% 0.18 25)",
-        "--success":        "oklch(55% 0.12 145)",
-        "--warning":        "oklch(68% 0.13 85)",
-        "--font-serif":     "'Cormorant Garamond', Georgia, serif",
-        "--font-sans":      "'Sora', system-ui, sans-serif",
-        "--font-mono":      "'JetBrains Mono', 'Fira Code', monospace",
-    },
-
-    # ── Ink — near black, warm amber, premium dark ──────────────────────
-    "ink": {
-        "mode": "dark",
-        "--bg-base":        "oklch(16% 0.01 65)",
-        "--bg-surface":     "oklch(21% 0.012 65)",
-        "--bg-elevated":    "oklch(26% 0.015 65)",
-        "--bg-user":        "oklch(26% 0.02 65)",
-        "--bg-code":        "oklch(12% 0.01 65)",
-        "--text-primary":   "oklch(92% 0.01 70)",
-        "--text-secondary": "oklch(68% 0.015 70)",
-        "--text-tertiary":  "oklch(52% 0.015 70)",
-        "--accent":         "oklch(70% 0.14 75)",
-        "--accent-hover":   "oklch(76% 0.15 75)",
-        "--accent-ghost":   "oklch(70% 0.14 75 / 0.10)",
-        "--accent-glow":    "oklch(70% 0.14 75 / 0.22)",
-        "--border":         "oklch(92% 0.01 70 / 0.10)",
-        "--border-strong":  "oklch(92% 0.01 70 / 0.17)",
-        "--border-focus":   "oklch(70% 0.14 75 / 0.50)",
-        "--tool-text":      "oklch(72% 0.12 150)",
-        "--tool-bg":        "oklch(72% 0.12 150 / 0.08)",
-        "--tool-border":    "oklch(72% 0.12 150 / 0.22)",
-        "--error":          "oklch(65% 0.18 25)",
-        "--success":        "oklch(72% 0.12 145)",
-        "--warning":        "oklch(78% 0.13 85)",
-        "--font-serif":     "'Cormorant Garamond', Georgia, serif",
-        "--font-sans":      "'Sora', system-ui, sans-serif",
-        "--font-mono":      "'JetBrains Mono', 'Fira Code', monospace",
-    },
-
-    # ── Obsidian — graphite black, coral accent ─────────────────────────
-    "obsidian": {
-        "mode": "dark",
-        "--bg-base":        "oklch(18% 0.02 300)",
-        "--bg-surface":     "oklch(23% 0.025 300)",
-        "--bg-elevated":    "oklch(28% 0.03 300)",
-        "--bg-user":        "oklch(28% 0.035 300)",
-        "--bg-code":        "oklch(14% 0.02 300)",
-        "--text-primary":   "oklch(91% 0.015 300)",
-        "--text-secondary": "oklch(68% 0.02 300)",
-        "--text-tertiary":  "oklch(52% 0.02 300)",
-        "--accent":         "oklch(65% 0.18 25)",
-        "--accent-hover":   "oklch(72% 0.19 25)",
-        "--accent-ghost":   "oklch(65% 0.18 25 / 0.10)",
-        "--accent-glow":    "oklch(65% 0.18 25 / 0.22)",
-        "--border":         "oklch(91% 0.015 300 / 0.10)",
-        "--border-strong":  "oklch(91% 0.015 300 / 0.17)",
-        "--border-focus":   "oklch(65% 0.18 25 / 0.50)",
-        "--tool-text":      "oklch(72% 0.12 170)",
-        "--tool-bg":        "oklch(72% 0.12 170 / 0.08)",
-        "--tool-border":    "oklch(72% 0.12 170 / 0.22)",
-        "--error":          "oklch(65% 0.18 25)",
-        "--success":        "oklch(72% 0.12 145)",
-        "--warning":        "oklch(78% 0.13 85)",
-        "--font-serif":     "'Cormorant Garamond', Georgia, serif",
-        "--font-sans":      "'Sora', system-ui, sans-serif",
-        "--font-mono":      "'JetBrains Mono', 'Fira Code', monospace",
-    },
-
-    # ── Nocturne — deep navy, soft lavender accent ──────────────────────
-    "nocturne": {
-        "mode": "dark",
-        "--bg-base":        "oklch(20% 0.03 270)",
-        "--bg-surface":     "oklch(25% 0.035 270)",
-        "--bg-elevated":    "oklch(30% 0.04 270)",
-        "--bg-user":        "oklch(30% 0.045 270)",
-        "--bg-code":        "oklch(16% 0.03 270)",
-        "--text-primary":   "oklch(91% 0.015 270)",
-        "--text-secondary": "oklch(70% 0.02 270)",
-        "--text-tertiary":  "oklch(55% 0.02 270)",
-        "--accent":         "oklch(70% 0.12 290)",
-        "--accent-hover":   "oklch(76% 0.13 290)",
-        "--accent-ghost":   "oklch(70% 0.12 290 / 0.10)",
-        "--accent-glow":    "oklch(70% 0.12 290 / 0.22)",
-        "--border":         "oklch(91% 0.015 270 / 0.10)",
-        "--border-strong":  "oklch(91% 0.015 270 / 0.17)",
-        "--border-focus":   "oklch(70% 0.12 290 / 0.50)",
-        "--tool-text":      "oklch(75% 0.12 160)",
-        "--tool-bg":        "oklch(75% 0.12 160 / 0.08)",
-        "--tool-border":    "oklch(75% 0.12 160 / 0.22)",
-        "--error":          "oklch(65% 0.18 25)",
-        "--success":        "oklch(72% 0.12 145)",
-        "--warning":        "oklch(78% 0.13 85)",
-        "--font-serif":     "'Cormorant Garamond', Georgia, serif",
-        "--font-sans":      "'Sora', system-ui, sans-serif",
-        "--font-mono":      "'JetBrains Mono', 'Fira Code', monospace",
-    },
-
-    # ── Rose — soft blush pink, rose gold accent ────────────────────────
-    "rose": {
-        "mode": "light",
-        "--bg-base":        "oklch(97% 0.015 10)",
-        "--bg-surface":     "oklch(100% 0 0)",
-        "--bg-elevated":    "oklch(95% 0.018 10)",
-        "--bg-user":        "oklch(92% 0.025 10)",
-        "--bg-code":        "oklch(23% 0.015 15)",
-        "--text-primary":   "oklch(24% 0.015 15)",
-        "--text-secondary": "oklch(48% 0.02 15)",
-        "--text-tertiary":  "oklch(62% 0.015 15)",
-        "--accent":         "oklch(55% 0.14 15)",
-        "--accent-hover":   "oklch(47% 0.15 15)",
-        "--accent-ghost":   "oklch(55% 0.14 15 / 0.08)",
-        "--accent-glow":    "oklch(55% 0.14 15 / 0.18)",
-        "--border":         "oklch(24% 0.015 15 / 0.10)",
-        "--border-strong":  "oklch(24% 0.015 15 / 0.18)",
-        "--border-focus":   "oklch(55% 0.14 15 / 0.55)",
-        "--tool-text":      "oklch(52% 0.12 150)",
-        "--tool-bg":        "oklch(52% 0.12 150 / 0.06)",
-        "--tool-border":    "oklch(52% 0.12 150 / 0.20)",
-        "--error":          "oklch(55% 0.18 25)",
-        "--success":        "oklch(55% 0.12 145)",
-        "--warning":        "oklch(68% 0.13 85)",
-        "--font-serif":     "'Cormorant Garamond', Georgia, serif",
-        "--font-sans":      "'Sora', system-ui, sans-serif",
-        "--font-mono":      "'JetBrains Mono', 'Fira Code', monospace",
-    },
-
-    # ── Mint — fresh green, crisp white, vibrant ────────────────────────
-    "mint": {
-        "mode": "light",
-        "--bg-base":        "oklch(97% 0.02 155)",
-        "--bg-surface":     "oklch(100% 0 0)",
-        "--bg-elevated":    "oklch(94% 0.025 155)",
-        "--bg-user":        "oklch(90% 0.03 155)",
-        "--bg-code":        "oklch(22% 0.02 155)",
-        "--text-primary":   "oklch(22% 0.025 155)",
-        "--text-secondary": "oklch(45% 0.03 155)",
-        "--text-tertiary":  "oklch(60% 0.025 155)",
-        "--accent":         "oklch(55% 0.16 150)",
-        "--accent-hover":   "oklch(47% 0.17 150)",
-        "--accent-ghost":   "oklch(55% 0.16 150 / 0.08)",
-        "--accent-glow":    "oklch(55% 0.16 150 / 0.18)",
-        "--border":         "oklch(22% 0.025 155 / 0.10)",
-        "--border-strong":  "oklch(22% 0.025 155 / 0.18)",
-        "--border-focus":   "oklch(55% 0.16 150 / 0.55)",
-        "--tool-text":      "oklch(52% 0.14 165)",
-        "--tool-bg":        "oklch(52% 0.14 165 / 0.06)",
-        "--tool-border":    "oklch(52% 0.14 165 / 0.20)",
-        "--error":          "oklch(55% 0.18 25)",
-        "--success":        "oklch(58% 0.16 150)",
-        "--warning":        "oklch(68% 0.13 85)",
-        "--font-serif":     "'Cormorant Garamond', Georgia, serif",
-        "--font-sans":      "'Sora', system-ui, sans-serif",
-        "--font-mono":      "'JetBrains Mono', 'Fira Code', monospace",
-    },
-
-    # ── Midnight — dark violet, electric purple accent ──────────────────
-    "midnight": {
-        "mode": "dark",
-        "--bg-base":        "oklch(15% 0.04 280)",
-        "--bg-surface":     "oklch(20% 0.045 280)",
-        "--bg-elevated":    "oklch(25% 0.05 280)",
-        "--bg-user":        "oklch(25% 0.055 280)",
-        "--bg-code":        "oklch(11% 0.04 280)",
-        "--text-primary":   "oklch(91% 0.02 280)",
-        "--text-secondary": "oklch(70% 0.025 280)",
-        "--text-tertiary":  "oklch(55% 0.025 280)",
-        "--accent":         "oklch(68% 0.18 305)",
-        "--accent-hover":   "oklch(74% 0.19 305)",
-        "--accent-ghost":   "oklch(68% 0.18 305 / 0.10)",
-        "--accent-glow":    "oklch(68% 0.18 305 / 0.22)",
-        "--border":         "oklch(91% 0.02 280 / 0.10)",
-        "--border-strong":  "oklch(91% 0.02 280 / 0.17)",
-        "--border-focus":   "oklch(68% 0.18 305 / 0.50)",
-        "--tool-text":      "oklch(75% 0.14 175)",
-        "--tool-bg":        "oklch(75% 0.14 175 / 0.08)",
-        "--tool-border":    "oklch(75% 0.14 175 / 0.22)",
-        "--error":          "oklch(65% 0.20 25)",
-        "--success":        "oklch(72% 0.14 150)",
-        "--warning":        "oklch(78% 0.15 85)",
-        "--font-serif":     "'Cormorant Garamond', Georgia, serif",
-        "--font-sans":      "'Sora', system-ui, sans-serif",
-        "--font-mono":      "'JetBrains Mono', 'Fira Code', monospace",
-    },
+# Shared typefaces — every theme inherits these
+_FONTS: Dict[str, str] = {
+    "--font-serif": "'Cormorant Garamond', Georgia, serif",
+    "--font-sans": "'Sora', system-ui, sans-serif",
+    "--font-mono": "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
 }
 
-THEME_NAMES   = list(THEMES.keys())
-THEME_LABELS  = {
+# Semantic state colors (not brand accents)
+_SEMANTIC_LIGHT: Dict[str, str] = {
+    "--error": "oklch(52% 0.18 25)",
+    "--success": "oklch(48% 0.13 150)",
+    "--warning": "oklch(62% 0.14 75)",
+}
+
+_SEMANTIC_DARK: Dict[str, str] = {
+    "--error": "oklch(68% 0.17 25)",
+    "--success": "oklch(72% 0.13 155)",
+    "--warning": "oklch(78% 0.13 85)",
+}
+
+
+def _theme(
+    mode: str,
+    *,
+    hue: float,
+    accent_hue: float | None = None,
+    accent_l: float | None = None,
+    accent_c: float | None = None,
+    base_l: float | None = None,
+    chroma: float = 0.012,
+) -> Dict[str, str]:
+    """
+    Build a full token set from a few hue/chroma knobs.
+
+    Light themes sit near paper (~97% L). Dark themes sit near ink (~16% L).
+    Accent gets its own hue so brand color can diverge from neutral tint.
+    """
+    is_dark = mode == "dark"
+    ah = accent_hue if accent_hue is not None else hue
+    ch = chroma
+
+    if is_dark:
+        bl = base_l if base_l is not None else 16.0
+        al = accent_l if accent_l is not None else 72.0
+        ac = accent_c if accent_c is not None else 0.13
+        tokens = {
+            "mode": mode,
+            "--bg-base": f"oklch({bl:.1f}% {ch:.3f} {hue})",
+            "--bg-surface": f"oklch({bl + 5:.1f}% {ch + 0.003:.3f} {hue})",
+            "--bg-elevated": f"oklch({bl + 10:.1f}% {ch + 0.006:.3f} {hue})",
+            "--bg-user": f"oklch({bl + 9:.1f}% {ch + 0.008:.3f} {ah})",
+            "--bg-code": f"oklch({max(bl - 4, 10):.1f}% {ch:.3f} {hue})",
+            "--text-primary": f"oklch(93% 0.012 {hue})",
+            "--text-secondary": f"oklch(72% 0.018 {hue})",
+            "--text-tertiary": f"oklch(58% 0.016 {hue})",
+            "--accent": f"oklch({al:.0f}% {ac:.2f} {ah})",
+            "--accent-hover": f"oklch({min(al + 6, 86):.0f}% {min(ac + 0.01, 0.22):.2f} {ah})",
+            "--accent-ghost": f"oklch({al:.0f}% {ac:.2f} {ah} / 0.12)",
+            "--accent-glow": f"oklch({al:.0f}% {ac:.2f} {ah} / 0.24)",
+            "--accent-fg": f"oklch({bl + 2:.1f}% {ch:.3f} {hue})",
+            "--border": f"oklch(93% 0.01 {hue} / 0.11)",
+            "--border-strong": f"oklch(93% 0.01 {hue} / 0.20)",
+            "--border-focus": f"oklch({al:.0f}% {ac:.2f} {ah} / 0.55)",
+            "--tool-text": f"oklch(74% 0.11 160)",
+            "--tool-bg": f"oklch(74% 0.11 160 / 0.09)",
+            "--tool-border": f"oklch(74% 0.11 160 / 0.24)",
+            **_SEMANTIC_DARK,
+            **_FONTS,
+        }
+    else:
+        bl = base_l if base_l is not None else 97.0
+        al = accent_l if accent_l is not None else 48.0
+        ac = accent_c if accent_c is not None else 0.14
+        tokens = {
+            "mode": mode,
+            "--bg-base": f"oklch({bl:.1f}% {ch:.3f} {hue})",
+            "--bg-surface": f"oklch({min(bl + 1.5, 99.2):.1f}% {max(ch - 0.004, 0.004):.3f} {hue})",
+            "--bg-elevated": f"oklch({bl - 2.5:.1f}% {ch + 0.004:.3f} {hue})",
+            "--bg-user": f"oklch({bl - 5:.1f}% {ch + 0.01:.3f} {ah})",
+            "--bg-code": f"oklch(22% {ch + 0.005:.3f} {hue})",
+            "--text-primary": f"oklch(22% 0.018 {hue})",
+            "--text-secondary": f"oklch(42% 0.022 {hue})",
+            "--text-tertiary": f"oklch(52% 0.018 {hue})",
+            "--accent": f"oklch({al:.0f}% {ac:.2f} {ah})",
+            "--accent-hover": f"oklch({max(al - 6, 32):.0f}% {min(ac + 0.01, 0.20):.2f} {ah})",
+            "--accent-ghost": f"oklch({al:.0f}% {ac:.2f} {ah} / 0.09)",
+            "--accent-glow": f"oklch({al:.0f}% {ac:.2f} {ah} / 0.18)",
+            "--accent-fg": f"oklch({min(bl + 1.5, 99.2):.1f}% {max(ch - 0.004, 0.004):.3f} {hue})",
+            "--border": f"oklch(22% 0.018 {hue} / 0.11)",
+            "--border-strong": f"oklch(22% 0.018 {hue} / 0.20)",
+            "--border-focus": f"oklch({al:.0f}% {ac:.2f} {ah} / 0.50)",
+            "--tool-text": f"oklch(42% 0.11 155)",
+            "--tool-bg": f"oklch(48% 0.11 155 / 0.07)",
+            "--tool-border": f"oklch(42% 0.11 155 / 0.22)",
+            **_SEMANTIC_LIGHT,
+            **_FONTS,
+        }
+    return tokens
+
+
+THEMES: Mapping[str, Dict[str, str]] = {
+    # Warm paper · espresso type · terracotta accent
+    "manuscript": _theme(
+        "light",
+        hue=70,
+        accent_hue=42,
+        accent_l=50,
+        accent_c=0.14,
+        base_l=97.2,
+        chroma=0.014,
+    ),
+    # Cool salt-white · deep teal
+    "atoll": _theme(
+        "light",
+        hue=220,
+        accent_hue=200,
+        accent_l=46,
+        accent_c=0.11,
+        base_l=97.0,
+        chroma=0.012,
+    ),
+    # Soft beige · olive
+    "grain": _theme(
+        "light",
+        hue=95,
+        accent_hue=125,
+        accent_l=44,
+        accent_c=0.11,
+        base_l=95.5,
+        chroma=0.018,
+    ),
+    # Blush · rose
+    "rose": _theme(
+        "light",
+        hue=12,
+        accent_hue=12,
+        accent_l=50,
+        accent_c=0.14,
+        base_l=97.0,
+        chroma=0.014,
+    ),
+    # Fresh mint · crisp green
+    "mint": _theme(
+        "light",
+        hue=155,
+        accent_hue=158,
+        accent_l=44,
+        accent_c=0.13,
+        base_l=97.0,
+        chroma=0.016,
+    ),
+    # Near-black · warm amber
+    "ink": _theme(
+        "dark",
+        hue=65,
+        accent_hue=75,
+        accent_l=74,
+        accent_c=0.13,
+        base_l=15.5,
+        chroma=0.012,
+    ),
+    # Graphite · coral
+    "obsidian": _theme(
+        "dark",
+        hue=40,
+        accent_hue=28,
+        accent_l=70,
+        accent_c=0.15,
+        base_l=16.0,
+        chroma=0.010,
+    ),
+    # Deep navy · soft periwinkle (not electric purple)
+    "nocturne": _theme(
+        "dark",
+        hue=255,
+        accent_hue=250,
+        accent_l=74,
+        accent_c=0.10,
+        base_l=17.0,
+        chroma=0.028,
+    ),
+    # Charcoal slate · indigo (replaces neon violet “AI slop”)
+    "midnight": _theme(
+        "dark",
+        hue=265,
+        accent_hue=255,
+        accent_l=72,
+        accent_c=0.11,
+        base_l=14.5,
+        chroma=0.022,
+    ),
+}
+
+THEME_NAMES = list(THEMES.keys())
+
+THEME_LABELS = {
     "manuscript": "Manuscript",
-    "atoll":      "Atoll",
-    "grain":      "Grain",
-    "ink":        "Ink",
-    "obsidian":   "Obsidian",
-    "nocturne":   "Nocturne",
-    "rose":       "Rose",
-    "mint":       "Mint",
-    "midnight":   "Midnight",
+    "atoll": "Atoll",
+    "grain": "Grain",
+    "ink": "Ink",
+    "obsidian": "Obsidian",
+    "nocturne": "Nocturne",
+    "rose": "Rose",
+    "mint": "Mint",
+    "midnight": "Midnight",
 }
-THEME_MODES = {"light": ["manuscript", "atoll", "grain", "rose", "mint"],
-               "dark":  ["ink", "obsidian", "nocturne", "midnight"]}
+
+THEME_MODES = {
+    "light": ["manuscript", "atoll", "grain", "rose", "mint"],
+    "dark": ["ink", "obsidian", "nocturne", "midnight"],
+}
+
+DEFAULT_THEME = "manuscript"
 
 
 def get_css_vars(theme_name: str) -> str:
-    """Return a :root { ... } block for the given theme name."""
-    theme = THEMES.get(theme_name, THEMES["manuscript"])
-    lines = ["  " + k + ": " + v + ";" for k, v in theme.items() if k != "mode"]
+    """Return a ``:root { ... }`` block for the given theme name."""
+    theme = THEMES.get(theme_name) or THEMES[DEFAULT_THEME]
+    lines = [f"  {key}: {value};" for key, value in theme.items() if key != "mode"]
     return ":root {\n" + "\n".join(lines) + "\n}"
 
 

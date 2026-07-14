@@ -1,0 +1,170 @@
+/* Thinking */
+.think {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  padding: 2px 0;
+}
+.think-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 var(--accent-glow);
+  animation: thinkPulse 1.6s var(--ease-soft) infinite;
+}
+@keyframes thinkPulse {
+  0% { transform: scale(0.85); opacity: 0.55; box-shadow: 0 0 0 0 var(--accent-glow); }
+  50% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 8px transparent; }
+  100% { transform: scale(0.85); opacity: 0.55; box-shadow: 0 0 0 0 transparent; }
+}
+.think-label {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  background: linear-gradient(
+    90deg,
+    var(--text-tertiary) 0%,
+    var(--text-secondary) 40%,
+    var(--text-tertiary) 80%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: thinkShimmer 2.2s linear infinite;
+}
+@keyframes thinkShimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* Tool cards */
+.tc {
+  border: 1px solid var(--tool-border);
+  background: var(--tool-bg);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin: 0.15rem 0;
+  animation: mIn 0.28s var(--ease-out) both;
+}
+.tch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.65rem 0.95rem;
+  border-bottom: 1px solid var(--tool-border);
+}
+.tfn {
+  font-family: var(--font-mono);
+  font-size: 12.25px;
+  font-weight: 600;
+  color: var(--tool-text);
+  flex: 1;
+  letter-spacing: -0.01em;
+}
+.tbg {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  background: var(--accent-ghost);
+  color: var(--accent);
+}
+.tbg.run {
+  background: color-mix(in oklch, var(--warning) 16%, var(--bg-surface));
+  color: var(--warning);
+}
+.tbg.done {
+  background: color-mix(in oklch, var(--success) 14%, var(--bg-surface));
+  color: var(--success);
+}
+.tcb { padding: 0.75rem 0.95rem; }
+.tar {
+  display: grid;
+  grid-template-columns: minmax(72px, 28%) 1fr;
+  gap: 10px;
+  font-size: 12px;
+  margin-bottom: 6px;
+  align-items: baseline;
+  font-family: var(--font-mono);
+}
+.tar.muted { color: var(--text-tertiary); display: block; font-size: 12px; }
+.tak { color: var(--text-tertiary); font-weight: 500; }
+.tav { color: var(--text-secondary); word-break: break-word; }
+.tdiv {
+  height: 1px;
+  background: var(--tool-border);
+  margin: 0.65rem 0;
+}
+.trr {
+  font-size: 12px;
+  display: grid;
+  grid-template-columns: minmax(72px, 28%) 1fr;
+  gap: 10px;
+  align-items: start;
+  font-family: var(--font-mono);
+}
+.tra {
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding-top: 2px;
+}
+.trv { color: var(--tool-text); word-break: break-word; }
+
+/* Components */
+.comp-card {
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin: 0.15rem 0;
+  animation: mIn 0.28s var(--ease-out) both;
+  box-shadow: var(--shadow-xs);
+}
+.comp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--bg-elevated) 55%, transparent);
+}
+.comp-name {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--accent);
+  font-weight: 600;
+  flex: 1;
+  letter-spacing: -0.01em;
+}
+.comp-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  background: var(--accent-ghost);
+  color: var(--accent);
+}
+.comp-body { padding: 1rem 1.05rem; }
+.comp-body img { max-width: 100%; border-radius: var(--radius-sm); }
+.comp-body canvas { max-width: 100%; }
+.comp-body table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.comp-body th, .comp-body td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+}
+.comp-body th { background: var(--bg-elevated); font-weight: 600; }
+

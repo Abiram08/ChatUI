@@ -5,4 +5,8 @@ python-dotenv>=1.0.1
 websockets>=12.0
 
 # Optional — required for provider="ollama" | "groq" | "openai"
-# openai>=1.0.0
+# pip install openai>=1.0.0
+
+# Dev / library quality (unit tests, coverage)
+# pip install -e ".[dev]"
+

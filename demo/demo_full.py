@@ -1,14 +1,24 @@
 """
-ChatUI v1.0 — Full Production Demo
-Showcases tools, components, widgets, session state, and event handlers.
+ChatUI — Full production demo
+Tools, components, widgets, session state, and event handlers.
+
+Run:
+    export GROQ_API_KEY=gsk_...
+    python demo/demo_full.py
 """
+import ast
+import operator
 import os
 import random
-import json
-from chatui import ChatUI
-from chatui.widgets import (
-    button, text_input, progress, status, table, metric,
-    divider, toast, file_uploader, image, selectbox, checkbox, slider, expander,
+from datetime import datetime
+
+from chatui import (
+    ChatUI,
+    button,
+    metric,
+    progress,
+    status,
+    table,
 )
 
 app = ChatUI(
@@ -16,16 +26,46 @@ app = ChatUI(
     api_key=os.getenv("GROQ_API_KEY"),
     title="ChatUI Pro",
     logo="\u25c6",
-    subtitle="Production-ready chatbot interface with tools, widgets, and live components.",
+    subtitle="Production-ready chatbot with tools, widgets, and live components.",
     theme="manuscript",
     chips=[
-        "Show me widgets",
         "What's the weather in Tokyo?",
-        "Generate a sales chart",
+        "Search database for 'customer'",
         "Show my dashboard",
-        "Upload a file for analysis",
+        "Chart sales by month",
+        "Show widgets",
     ],
+    rate_limit=60,
 )
+
+
+# ── Safe calculator (no eval) ─────────────────────────────────────────────────
+
+_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.Pow: operator.pow,
+    ast.USub: operator.neg,
+    ast.UAdd: operator.pos,
+    ast.Mod: operator.mod,
+}
+
+
+def _safe_eval(node):
+    if isinstance(node, ast.Expression):
+        return _safe_eval(node.body)
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
+    if isinstance(node, ast.Num):  # Python 3.9 compat
+        return node.n
+    if isinstance(node, ast.BinOp) and type(node.op) in _OPS:
+        return _OPS[type(node.op)](_safe_eval(node.left), _safe_eval(node.right))
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _OPS:
+        return _OPS[type(node.op)](_safe_eval(node.operand))
+    raise ValueError("Only simple arithmetic is allowed")
+
 
 # ═══════════════════════════════════════════════════════════════════
 # TOOLS
@@ -48,9 +88,14 @@ def get_weather(city: str) -> dict:
 @app.tool
 def search_database(query: str, limit: int = 5) -> dict:
     """Search the internal database for records matching the query."""
+    n = max(1, min(int(limit or 5), 10))
     results = [
-        {"id": i, "title": f"Result {i}: {query} match #{i}", "score": round(random.uniform(0.7, 0.99), 3)}
-        for i in range(1, min(limit + 1, 11))
+        {
+            "id": i,
+            "title": f"Result {i}: {query} match #{i}",
+            "score": round(random.uniform(0.7, 0.99), 3),
+        }
+        for i in range(1, n + 1)
     ]
     return {"query": query, "total": len(results), "results": results}
 
@@ -60,12 +105,11 @@ def get_dashboard() -> dict:
     """Return the executive dashboard with KPIs and charts data."""
     return {
         "kpis": {
-            "revenue":     "$1,247,892",
-            "users":       "34,291",
-            "churn":       "2.1%",
-            "nps":         "72",
-            "growth":      "+12.4%",
-            "tickets":     "47 open",
+            "revenue": "$1,247,892",
+            "users": "34,291",
+            "churn": "2.1%",
+            "nps": "72",
+            "growth": "+12.4%",
         },
         "monthly_revenue": [
             {"month": "Jan", "value": 890000},
@@ -76,32 +120,44 @@ def get_dashboard() -> dict:
             {"month": "Jun", "value": 1247892},
         ],
         "top_products": [
-            {"name": "Pro Plan",       "revenue": 520000, "growth": "+8%"},
-            {"name": "Enterprise",     "revenue": 410000, "growth": "+15%"},
-            {"name": "Add-ons",        "revenue": 180000, "growth": "+22%"},
-            {"name": "API Access",     "revenue": 137892, "growth": "+5%"},
+            {"name": "Pro Plan", "revenue": 520000, "growth": "+8%"},
+            {"name": "Enterprise", "revenue": 410000, "growth": "+15%"},
+            {"name": "Add-ons", "revenue": 180000, "growth": "+22%"},
+            {"name": "API Access", "revenue": 137892, "growth": "+5%"},
         ],
     }
 
 
 @app.tool
-def show_widgets_demo() -> dict:
-    """Demonstrate all available widget types in ChatUI."""
-    return {
-        "demo": True,
-        "message": "Widgets should be rendered by the component below.",
-    }
+def calculate(expression: str) -> dict:
+    """Evaluate a simple math expression (numbers and + - * / only)."""
+    try:
+        tree = ast.parse(expression, mode="eval")
+        result = _safe_eval(tree)
+        return {"expression": expression, "result": result}
+    except Exception as e:
+        return {"expression": expression, "error": str(e)}
 
 
 @app.tool
-def process_file(name: str, description: str) -> dict:
-    """Process an uploaded file by name."""
-    return {
-        "file": name,
-        "status": "processed",
-        "rows_parsed": random.randint(100, 5000),
-        "columns_found": random.randint(3, 15),
-    }
+def show_widgets() -> tuple:
+    """Render interactive demo widgets in the chat."""
+    return (
+        metric("Revenue", "$1.2M", delta="+12%"),
+        metric("Users", "34.2k", delta="+8%"),
+        metric("NPS", "72", delta="+3"),
+        progress(0.78, label="Project completion"),
+        status("Database sync complete", state="complete"),
+        table(
+            [
+                {"product": "Pro", "mrr": "$42k"},
+                {"product": "Team", "mrr": "$18k"},
+            ],
+            caption="Top plans",
+        ),
+        button("Refresh data", key="refresh"),
+        button("Dismiss", key="cancel", variant="secondary"),
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -124,7 +180,8 @@ def render_chart(data: dict) -> str:
     )
     return (
         f'<div>'
-        f'<b style="font-size:14px;color:var(--text-primary)">{data.get("title", "Chart")}</b>'
+        f'<b style="font-size:14px;color:var(--text-primary);font-family:var(--font-serif)">'
+        f'{data.get("title", "Chart")}</b>'
         f'<br><br>{bars}'
         f'</div>'
     )
@@ -155,7 +212,7 @@ def render_dashboard(data: dict) -> str:
         "values": [m["value"] for m in monthly],
     })
 
-    product_html = "".join(
+    product_rows = "".join(
         f'<tr><td style="padding:6px 12px;border:1px solid var(--border);font-weight:500">{p["name"]}</td>'
         f'<td style="padding:6px 12px;border:1px solid var(--border);font-family:var(--font-mono);font-size:13px">${p["revenue"]:,}</td>'
         f'<td style="padding:6px 12px;border:1px solid var(--border);font-family:var(--font-mono);'
@@ -165,7 +222,7 @@ def render_dashboard(data: dict) -> str:
 
     return f"""
     <div>
-      <h3 style="font-family:var(--font-serif);margin:0 0 1rem">Executive Dashboard</h3>
+      <h3 style="font-family:var(--font-serif);margin:0 0 1rem;font-size:1.3rem">Executive Dashboard</h3>
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:1.5rem">{kpi_html}</div>
       {chart_html}
       <br>
@@ -175,22 +232,14 @@ def render_dashboard(data: dict) -> str:
           <th style="padding:8px 12px;border:1px solid var(--border);text-align:left">Revenue</th>
           <th style="padding:8px 12px;border:1px solid var(--border);text-align:left">Growth</th>
         </tr></thead>
-        <tbody>{product_html}</tbody>
+        <tbody>{product_rows}</tbody>
       </table>
     </div>
     """
 
 
-@app.component("widgets_demo")
-def render_widgets_demo(data: dict) -> str:
-    """Render a demo of all available widgets."""
-    return "".join([
-        button("Click Me", key="demo_btn").to_payload()["props"]["label"],
-    ])
-
-
 # ═══════════════════════════════════════════════════════════════════
-# CONTEXT
+# CONTEXT + EVENTS
 # ═══════════════════════════════════════════════════════════════════
 
 @app.context
@@ -198,32 +247,32 @@ def current_state():
     """Current session data and timestamp."""
     return {
         "session_id": app.session.id,
-        "timestamp": __import__("datetime").datetime.now().isoformat(),
-        "user_agent": "ChatUI Demo",
+        "server_time": datetime.now().isoformat(),
+        "click_count": app.session.get("click_count", 0),
+        "last_button": app.session.get("last_button"),
     }
 
 
-# ═══════════════════════════════════════════════════════════════════
-# EVENT HANDLERS
-# ═══════════════════════════════════════════════════════════════════
-
 @app.on("button_click")
 def handle_button(data: dict):
+    """Track button clicks in session state."""
     key = data.get("key", "")
     app.session["last_button"] = key
     app.session["click_count"] = app.session.get("click_count", 0) + 1
-    return {"clicked": key, "total_clicks": app.session["click_count"]}
+    return {
+        "clicked": key,
+        "total_clicks": app.session["click_count"],
+    }
 
 
-@app.on("file_upload")
-def handle_file(data: dict):
-    files = data.get("files", [])
-    if files:
-        app.session["uploaded_files"] = [f["name"] for f in files]
-    return {"received": len(files), "names": app.session["uploaded_files"]}
+@app.on("refresh")
+def on_refresh(data: dict):
+    """Handle the Refresh widget key specifically."""
+    return (
+        status("Refreshed", state="complete"),
+        metric("Clicks", app.session.get("click_count", 0)),
+    )
 
-
-# ═══════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     app.run()

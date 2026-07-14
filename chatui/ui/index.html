@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
 <meta name="theme-color" content="#1a1a2e">
+<meta name="color-scheme" content="light dark">
 <title>{{TITLE}}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,743 +13,16 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
-/*{{THEME_VARS}}*/
-
-:root {
-  --sidebar-width: 280px;
-  --max-content: 740px;
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
-  --radius-xl: 30px;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --font-size-base: 15px;
-}
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body { height: 100%; overflow: hidden; }
-
-body {
-  font-family: var(--font-sans);
-  background: var(--bg-base);
-  color: var(--text-primary);
-  font-size: var(--font-size-base);
-  line-height: 1.65;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
-}
-
-/* ── App shell ──────────────────────────────────────────── */
-.app { display: flex; height: 100vh; overflow: hidden; }
-
-/* ── Sidebar ────────────────────────────────────────────── */
-.sidebar {
-  width: var(--sidebar-width); flex-shrink: 0;
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; overflow: hidden;
-}
-
-.sb-head {
-  padding: 1.25rem 1.25rem 1rem;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.logo {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 1rem;
-}
-
-.logo-mark {
-  width: 32px; height: 32px; border-radius: 10px;
-  background: var(--accent); color: var(--bg-surface);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 700; flex-shrink: 0;
-  box-shadow: 0 0 0 1px var(--border-strong), 0 6px 20px var(--accent-glow);
-}
-
-.logo-text {
-  font-family: var(--font-serif); font-size: 1.35rem;
-  font-weight: 600; letter-spacing: -0.02em; line-height: 1;
-}
-
-.model-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--font-mono); font-size: 10px;
-  letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--text-tertiary); background: var(--bg-elevated);
-  border: 1px solid var(--border); border-radius: 999px;
-  padding: 4px 10px; max-width: 100%;
-  overflow: hidden; white-space: nowrap; cursor: default;
-}
-.model-badge::before {
-  content: ''; width: 5px; height: 5px; border-radius: 50%;
-  background: var(--success); box-shadow: 0 0 6px var(--success);
-}
-.model-badge.off::before { background: var(--error); box-shadow: 0 0 6px var(--error); }
-
-.sb-actions {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 0.75rem;
-}
-
-.sb-btn {
-  display: flex; align-items: center; justify-content: center;
-  gap: 6px; padding: 8px 0; border-radius: var(--radius-sm);
-  border: 1px solid var(--border); background: transparent;
-  color: var(--text-secondary); font-family: var(--font-sans);
-  font-size: 12px; font-weight: 500; cursor: pointer;
-  transition: all 0.15s var(--ease-out);
-}
-.sb-btn:hover { background: var(--bg-elevated); color: var(--text-primary); border-color: var(--border-strong); }
-.sb-btn.primary { background: var(--accent); color: var(--bg-surface); border-color: var(--accent); }
-.sb-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-
-/* Settings */
-.sys-panel {
-  overflow: hidden; max-height: 0;
-  transition: max-height 0.35s var(--ease-out);
-  border-bottom: 1px solid var(--border); flex-shrink: 0;
-}
-.sys-panel.open { max-height: 560px; }
-.sys-inner {
-  padding: 1rem 1.25rem 1.25rem; overflow-y: auto;
-  max-height: 560px; display: flex; flex-direction: column; gap: 1.1rem;
-}
-.setting-block { display: flex; flex-direction: column; gap: 0.45rem; }
-.sb-section-label {
-  font-family: var(--font-mono); font-size: 9px;
-  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary);
-}
-.theme-select {
-  width: 100%; padding: 8px 11px; border-radius: var(--radius-sm);
-  border: 1px solid var(--border); background: var(--bg-elevated);
-  color: var(--text-primary); font-family: var(--font-sans);
-  font-size: 12px; cursor: pointer; outline: none;
-  appearance: none; transition: border-color 0.15s;
-}
-.theme-select:focus { border-color: var(--border-focus); }
-.theme-select option { background: var(--bg-elevated); color: var(--text-primary); }
-.font-opts, .size-opts { display: flex; gap: 6px; }
-.font-opt, .size-opt {
-  flex: 1; padding: 7px 0; border-radius: var(--radius-sm);
-  border: 1px solid var(--border); background: transparent;
-  color: var(--text-secondary); font-size: 11px;
-  font-family: var(--font-sans); cursor: pointer;
-  transition: all 0.12s; text-align: center;
-}
-.font-opt:hover, .size-opt:hover { color: var(--text-primary); border-color: var(--border-strong); background: var(--bg-elevated); }
-.font-opt.active, .size-opt.active { color: var(--accent); border-color: var(--accent); background: var(--accent-ghost); }
-.sys-ta {
-  width: 100%; background: var(--bg-elevated);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  color: var(--text-primary); font-family: var(--font-sans);
-  font-size: 12px; padding: 0.65rem 0.85rem;
-  resize: none; outline: none; line-height: 1.55; height: 90px;
-  transition: border-color 0.15s;
-}
-.sys-ta:focus { border-color: var(--border-focus); }
-.sys-save {
-  margin-top: 4px; padding: 5px 16px; align-self: flex-start;
-  background: var(--accent); color: var(--bg-surface);
-  border: none; border-radius: var(--radius-sm);
-  font-size: 12px; font-family: var(--font-sans); font-weight: 600;
-  cursor: pointer; transition: background 0.15s;
-}
-.sys-save:hover { background: var(--accent-hover); }
-
-/* Tools */
-.sb-tools {
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0; padding: 0.75rem 0 0.5rem;
-}
-.sb-tools-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 1.25rem 0.35rem;
-}
-.tools-count {
-  font-family: var(--font-mono); font-size: 9px;
-  background: var(--accent-ghost); color: var(--accent);
-  border: 1px solid var(--accent-ghost); border-radius: 999px;
-  padding: 1px 7px; font-weight: 600;
-}
-.tool-item {
-  display: flex; align-items: flex-start; gap: 8px;
-  padding: 0.35rem 1.25rem; transition: background 0.1s;
-}
-.tool-item:hover { background: var(--bg-elevated); }
-.tool-item-icon { color: var(--tool-text); font-size: 11px; margin-top: 2px; flex-shrink: 0; }
-.tool-item-name { font-family: var(--font-mono); font-size: 11.5px; color: var(--tool-text); font-weight: 500; }
-.tool-item-desc {
-  font-size: 10.5px; color: var(--text-tertiary); margin-top: 1px; line-height: 1.35;
-  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-
-/* Conversations */
-.sb-convs {
-  flex: 1; overflow-y: auto; padding: 0.5rem 0.75rem;
-}
-.sb-convs::-webkit-scrollbar { width: 3px; }
-.sb-convs::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
-.cv {
-  padding: 0.55rem 0.75rem; border-radius: var(--radius-sm);
-  cursor: pointer; color: var(--text-secondary); font-size: 12.5px;
-  border-left: 2px solid transparent; margin-bottom: 2px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  transition: all 0.12s;
-}
-.cv:hover { background: var(--bg-elevated); color: var(--text-primary); }
-.cv.active { background: var(--accent-ghost); color: var(--text-primary); border-left-color: var(--accent); font-weight: 500; }
-.cv-del-btn {
-  display: none; float: right; background: none; border: none;
-  color: var(--text-tertiary); cursor: pointer; font-size: 14px;
-  padding: 0 2px; line-height: 1;
-}
-.cv:hover .cv-del-btn { display: inline; }
-.cv-del-btn:hover { color: var(--error); }
-
-.sb-foot {
-  padding: 0.75rem 1.25rem; flex-shrink: 0;
-  border-top: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-}
-.sb-foot-text { font-size: 11px; color: var(--text-tertiary); }
-.sb-foot-actions { display: flex; gap: 6px; }
-.ib {
-  width: 30px; height: 30px; border-radius: 7px;
-  border: 1px solid var(--border); background: transparent;
-  color: var(--text-secondary); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px; transition: all 0.12s;
-}
-.ib:hover { background: var(--bg-elevated); color: var(--text-primary); border-color: var(--border-strong); }
-.ib[title] { position: relative; }
-
-/* ── Main area ──────────────────────────────────────────── */
-.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-.mwrap {
-  flex: 1; overflow-y: auto;
-  padding: 2rem 1.5rem 1rem;
-  scroll-behavior: smooth;
-}
-.mwrap::-webkit-scrollbar { width: 5px; }
-.mwrap::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
-.mlist { max-width: var(--max-content); margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
-
-/* Welcome */
-.welcome {
-  display: flex; flex-direction: column; align-items: flex-start;
-  justify-content: center; min-height: 58vh;
-  padding: 2rem 0 2rem 3vw;
-  max-width: var(--max-content); margin: 0 auto; width: 100%;
-}
-.welcome-kicker {
-  font-family: var(--font-mono); font-size: 10px;
-  letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--accent); margin-bottom: 1rem;
-}
-.welcome-title {
-  font-family: var(--font-serif);
-  font-size: clamp(2.6rem, 5.5vw, 4.2rem);
-  font-weight: 600; line-height: 1.05;
-  letter-spacing: -0.03em; margin-bottom: 1.25rem; max-width: 620px;
-}
-.welcome-sub {
-  font-size: 1.05rem; color: var(--text-secondary);
-  max-width: 460px; line-height: 1.6; margin-bottom: 2rem;
-}
-.chips { display: flex; flex-wrap: wrap; gap: 10px; }
-.chip {
-  padding: 0.55rem 1.15rem; background: var(--bg-surface);
-  border: 1px solid var(--border); border-radius: 999px;
-  color: var(--text-secondary); font-size: 13px;
-  font-family: var(--font-sans); cursor: pointer;
-  transition: all 0.15s var(--ease-out);
-}
-.chip:hover { background: var(--bg-elevated); color: var(--text-primary); border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 14px var(--accent-glow); }
-
-/* ── Messages ───────────────────────────────────────────── */
-.msg {
-  display: flex; gap: 14px; align-items: flex-start;
-  animation: mIn 0.25s var(--ease-out) forwards;
-  opacity: 0; transform: translateY(8px);
-}
-@keyframes mIn { to { opacity: 1; transform: translateY(0); } }
-.msg.user { flex-direction: row-reverse; }
-
-.av {
-  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 700; margin-top: 2px;
-  font-family: var(--font-sans); letter-spacing: 0.02em;
-}
-.av.ai { background: var(--accent); color: var(--bg-surface); box-shadow: 0 0 0 1px var(--border-strong), 0 6px 18px var(--accent-glow); }
-.av.user { background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border); }
-
-.mb { max-width: 620px; width: 100%; }
-.bub {
-  padding: 1rem 1.25rem; border-radius: var(--radius-lg);
-  line-height: 1.7; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-}
-.msg.ai .bub { background: var(--bg-surface); border: 1px solid var(--border); border-top-left-radius: 5px; color: var(--text-primary); }
-.msg.user .bub { background: var(--bg-user); border: 1px solid var(--border); border-top-right-radius: 5px; color: var(--text-primary); text-align: left; }
-
-.mmeta {
-  display: flex; align-items: center; gap: 10px; margin-top: 6px; padding: 0 5px;
-}
-.msg.user .mmeta { flex-direction: row-reverse; }
-.mt { font-size: 11px; color: var(--text-tertiary); }
-.tbadge {
-  font-family: var(--font-mono); font-size: 9.5px; color: var(--text-tertiary);
-  background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: 4px; padding: 1px 7px;
-}
-
-.msg-actions {
-  display: flex; gap: 5px; align-items: center; margin-top: 5px; padding: 0 5px;
-  opacity: 0; pointer-events: none; transition: opacity 0.15s;
-}
-.msg.ai:hover .msg-actions { opacity: 1; pointer-events: auto; }
-.ma-btn {
-  background: transparent; border: 1px solid var(--border);
-  border-radius: 6px; color: var(--text-tertiary);
-  font-size: 11px; padding: 3px 9px; cursor: pointer;
-  font-family: var(--font-sans); font-weight: 500; transition: all 0.12s;
-}
-.ma-btn:hover { color: var(--text-primary); border-color: var(--border-strong); background: var(--bg-elevated); }
-.ma-btn.regen { color: var(--accent); border-color: var(--accent-ghost); }
-.ma-btn.regen:hover { background: var(--accent-ghost); border-color: var(--accent); }
-
-/* ── Markdown ───────────────────────────────────────────── */
-.prose { font-size: 15.5px; }
-.prose > *:first-child { margin-top: 0; }
-.prose > *:last-child { margin-bottom: 0; }
-.prose p { margin-bottom: 0.85rem; }
-.prose strong { font-weight: 600; color: var(--text-primary); }
-.prose em { color: var(--text-secondary); font-style: italic; font-family: var(--font-serif); font-size: 1.05em; }
-.prose ul, .prose ol { margin: 0.6rem 0 0.9rem 1.5rem; }
-.prose li { margin-bottom: 0.35rem; }
-.prose code {
-  font-family: var(--font-mono); font-size: 13px;
-  background: var(--accent-ghost); border: 1px solid var(--border);
-  border-radius: 5px; padding: 1.5px 6px; color: var(--accent); font-weight: 500;
-}
-.prose pre {
-  margin: 1rem 0; border-radius: var(--radius-md);
-  overflow: hidden; border: 1px solid var(--border);
-  background: var(--bg-code);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03), 0 4px 20px rgba(0,0,0,0.12);
-}
-.prose pre code {
-  display: block; padding: 1rem 1.15rem;
-  background: transparent; border: none; border-radius: 0;
-  font-size: 13px; line-height: 1.65; overflow-x: auto;
-  color: var(--text-primary); font-weight: 400;
-}
-.prose a { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent); }
-.prose a:hover { border-bottom-color: var(--accent); }
-.prose h1 { font-family: var(--font-serif); font-size: 1.8rem; font-weight: 600; margin: 1.5rem 0 0.6rem; letter-spacing: -0.02em; }
-.prose h2 { font-family: var(--font-serif); font-size: 1.45rem; font-weight: 600; margin: 1.25rem 0 0.55rem; letter-spacing: -0.01em; }
-.prose h3 { font-family: var(--font-serif); font-size: 1.2rem; font-weight: 600; margin: 1rem 0 0.45rem; }
-.prose blockquote { border-left: 2px solid var(--accent); padding-left: 1rem; color: var(--text-secondary); margin: 1rem 0; font-family: var(--font-serif); font-size: 1.05em; }
-.prose table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 13.5px; }
-.prose th, .prose td { border: 1px solid var(--border); padding: 8px 13px; text-align: left; }
-.prose th { background: var(--bg-elevated); font-weight: 600; color: var(--text-primary); }
-.prose td { color: var(--text-secondary); }
-.prose hr { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
-
-/* Code block header */
-.chdr {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 14px; background: rgba(255,255,255,0.04);
-  border-bottom: 1px solid var(--border);
-  font-family: var(--font-mono); font-size: 10.5px;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary);
-}
-.cbtn {
-  background: transparent; border: 1px solid var(--border);
-  border-radius: 5px; color: var(--text-tertiary);
-  font-size: 10.5px; padding: 2px 9px; cursor: pointer;
-  transition: all 0.15s; font-family: var(--font-sans); font-weight: 500;
-}
-.cbtn:hover { color: var(--text-primary); border-color: var(--border-strong); background: rgba(255,255,255,0.06); }
-
-/* Streaming cursor */
-.scur { display: inline-block; width: 2px; height: 1.1em; background: var(--accent); margin-left: 2px; vertical-align: text-bottom; animation: bl 0.85s step-end infinite; }
-@keyframes bl { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-
-/* Thinking dots */
-.think { display: inline-flex; gap: 5px; align-items: center; padding: 4px 2px; }
-.td { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pu 1.5s ease-in-out infinite; }
-.td:nth-child(2) { animation-delay: 0.2s; }
-.td:nth-child(3) { animation-delay: 0.4s; }
-@keyframes pu { 0%, 100% { opacity: 0.25; transform: scale(0.75); } 50% { opacity: 1; transform: scale(1.1); } }
-
-/* ── Tool cards ─────────────────────────────────────────── */
-.tc {
-  border: 1px solid var(--tool-border);
-  background: var(--tool-bg); border-radius: var(--radius-md);
-  overflow: hidden; margin: 0.35rem 0;
-  animation: mIn 0.25s var(--ease-out) forwards; opacity: 0;
-  position: relative;
-}
-.tc::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, var(--tool-text) 0%, transparent 75%);
-}
-.tch {
-  display: flex; align-items: center; gap: 8px;
-  padding: 0.65rem 1rem; border-bottom: 1px solid var(--tool-border);
-  font-family: var(--font-mono);
-}
-.tch > span:first-child { font-size: 13px; flex-shrink: 0; }
-.tch:has(.tbg.run) > span:first-child { animation: sparkle 1.2s ease-in-out infinite; }
-@keyframes sparkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-.tfn { font-size: 12.5px; font-weight: 600; color: var(--tool-text); flex: 1; }
-.tbg {
-  font-size: 8.5px; letter-spacing: 0.1em; text-transform: uppercase;
-  padding: 2px 8px; border-radius: 999px; font-weight: 700;
-  background: var(--accent-ghost); color: var(--accent); transition: all 0.25s;
-}
-.tbg.run { background: color-mix(in oklch, var(--warning) 20%, var(--bg-surface)); color: var(--warning); animation: pulseBadge 1.6s ease-in-out infinite; }
-@keyframes pulseBadge { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-.tcb { padding: 0.75rem 1rem; }
-.tar { display: flex; gap: 8px; font-size: 12px; margin-bottom: 4px; align-items: baseline; font-family: var(--font-mono); }
-.tak { color: var(--text-tertiary); min-width: 68px; font-weight: 500; }
-.tav { color: var(--text-secondary); }
-.tdiv { border: none; border-top: 1px solid var(--tool-border); margin: 0.625rem 0; }
-.trr { font-size: 12px; color: var(--tool-text); display: flex; gap: 8px; align-items: flex-start; font-family: var(--font-mono); }
-.tra { color: var(--text-tertiary); flex-shrink: 0; font-weight: 600; }
-.trv { word-break: break-all; }
-
-/* ── Component cards ───────────────────────────────────── */
-.comp-card {
-  border: 1px solid var(--border-strong);
-  background: var(--bg-surface); border-radius: var(--radius-lg);
-  overflow: hidden; margin: 0.35rem 0;
-  animation: mIn 0.25s var(--ease-out) forwards; opacity: 0;
-  position: relative;
-}
-.comp-card::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, var(--accent) 0%, transparent 75%);
-}
-.comp-head {
-  display: flex; align-items: center; gap: 8px;
-  padding: 0.65rem 1rem; border-bottom: 1px solid var(--border);
-  font-family: var(--font-mono); font-size: 11px;
-}
-.comp-icon { color: var(--accent); font-size: 13px; }
-.comp-name { color: var(--accent); font-weight: 600; flex: 1; }
-.comp-badge {
-  font-size: 8.5px; letter-spacing: 0.1em; text-transform: uppercase;
-  padding: 2px 8px; border-radius: 999px; font-weight: 700;
-  background: var(--accent-ghost); color: var(--accent);
-}
-.comp-body { padding: 1rem; }
-.comp-body img { max-width: 100%; border-radius: var(--radius-sm); }
-.comp-body canvas { max-width: 100%; }
-.comp-body table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.comp-body th, .comp-body td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
-.comp-body th { background: var(--bg-elevated); font-weight: 600; }
-
-/* ── Widgets ────────────────────────────────────────────── */
-.widget-card {
-  border: 1px solid var(--border);
-  background: var(--bg-surface); border-radius: var(--radius-md);
-  padding: 1rem; margin: 0.5rem 0;
-  animation: mIn 0.2s var(--ease-out) forwards; opacity: 0;
-}
-
-/* Button widget */
-.w-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 18px; border-radius: var(--radius-sm);
-  font-family: var(--font-sans); font-size: 13px; font-weight: 600;
-  cursor: pointer; border: none; transition: all 0.15s var(--ease-out);
-  margin: 3px 6px 3px 0;
-}
-.w-btn.primary { background: var(--accent); color: var(--bg-surface); }
-.w-btn.primary:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 14px var(--accent-glow); }
-.w-btn.secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border); }
-.w-btn.secondary:hover { border-color: var(--border-strong); background: var(--bg-surface); }
-.w-btn.danger { background: color-mix(in oklch, var(--error) 12%, var(--bg-surface)); color: var(--error); border: 1px solid var(--error); }
-.w-btn.danger:hover { background: color-mix(in oklch, var(--error) 20%, var(--bg-surface)); }
-.w-btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
-
-/* Text input widget */
-.w-input-group { margin-bottom: 0.75rem; }
-.w-input-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; display: block; }
-.w-input-field {
-  display: flex; gap: 8px; align-items: flex-end;
-}
-.w-input {
-  flex: 1; padding: 8px 12px; border-radius: var(--radius-sm);
-  border: 1px solid var(--border); background: var(--bg-elevated);
-  color: var(--text-primary); font-family: var(--font-sans);
-  font-size: 13px; outline: none; transition: border-color 0.15s;
-}
-.w-input:focus { border-color: var(--border-focus); }
-.w-input-submit {
-  padding: 8px 16px; background: var(--accent); color: var(--bg-surface);
-  border: none; border-radius: var(--radius-sm); font-size: 12px;
-  font-weight: 600; cursor: pointer; font-family: var(--font-sans);
-  transition: background 0.15s;
-}
-.w-input-submit:hover { background: var(--accent-hover); }
-
-/* Selectbox & Radio */
-.w-select, .w-radios, .w-slider-group, .w-checkbox-group { margin-bottom: 0.75rem; }
-.w-select select {
-  width: 100%; padding: 8px 11px; border-radius: var(--radius-sm);
-  border: 1px solid var(--border); background: var(--bg-elevated);
-  color: var(--text-primary); font-family: var(--font-sans);
-  font-size: 13px; cursor: pointer; outline: none; appearance: none;
-}
-.w-select select:focus { border-color: var(--border-focus); }
-.w-radio-opt, .w-checkbox-opt {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 0; cursor: pointer; font-size: 13px;
-  color: var(--text-primary);
-}
-.w-radio-opt input, .w-checkbox-opt input { accent-color: var(--accent); width: 16px; height: 16px; }
-
-/* Slider */
-.w-slider-group input[type="range"] {
-  width: 100%; accent-color: var(--accent); margin: 3px 0;
-}
-.w-slider-val { font-family: var(--font-mono); font-size: 12px; color: var(--accent); font-weight: 600; margin-left: 8px; }
-
-/* Progress */
-.w-progress { margin: 0.75rem 0; }
-.w-progress-bar {
-  height: 8px; background: var(--bg-elevated); border-radius: 999px;
-  overflow: hidden; border: 1px solid var(--border);
-}
-.w-progress-fill {
-  height: 100%; background: var(--accent); border-radius: 999px;
-  transition: width 0.3s var(--ease-out);
-  background-image: repeating-linear-gradient(
-    -45deg, transparent, transparent 6px,
-    rgba(255,255,255,0.08) 6px, rgba(255,255,255,0.08) 12px
-  );
-}
-.w-progress-label { font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px; display: flex; justify-content: space-between; }
-
-/* Status */
-.w-status {
-  border: 1px solid var(--border); border-radius: var(--radius-md);
-  overflow: hidden; margin: 0.5rem 0;
-}
-.w-status-head {
-  display: flex; align-items: center; gap: 8px;
-  padding: 0.65rem 1rem; cursor: pointer; transition: background 0.15s;
-  font-weight: 500; font-size: 13px;
-}
-.w-status-head:hover { background: var(--bg-elevated); }
-.w-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.w-status-dot.running { background: var(--warning); animation: pulseBadge 1.6s ease-in-out infinite; }
-.w-status-dot.complete { background: var(--success); }
-.w-status-dot.error { background: var(--error); }
-.w-status-body { padding: 0 1rem 1rem; display: none; }
-.w-status.open .w-status-body { display: block; }
-
-/* Table widget */
-.w-table-wrapper { overflow-x: auto; margin: 0.75rem 0; }
-.w-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.w-table th { background: var(--bg-elevated); font-weight: 600; color: var(--text-primary); text-align: left; padding: 8px 13px; border: 1px solid var(--border); }
-.w-table td { padding: 7px 13px; border: 1px solid var(--border); color: var(--text-secondary); }
-.w-table tr:nth-child(even) td { background: var(--bg-elevated); }
-.w-table-caption { font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px; }
-
-/* Metric */
-.w-metric { display: flex; flex-direction: column; margin: 0.75rem 0; }
-.w-metric-val { font-family: var(--font-serif); font-size: 2.2rem; font-weight: 600; line-height: 1.1; }
-.w-metric-label { font-size: 12px; color: var(--text-tertiary); margin-bottom: 2px; }
-.w-metric-delta { font-family: var(--font-mono); font-size: 12px; margin-top: 2px; }
-.w-metric-delta.up { color: var(--success); }
-.w-metric-delta.down { color: var(--error); }
-
-/* Expander */
-.w-expander {
-  border: 1px solid var(--border); border-radius: var(--radius-md);
-  overflow: hidden; margin: 0.5rem 0;
-}
-.w-expander-head {
-  display: flex; align-items: center; gap: 8px;
-  padding: 0.65rem 1rem; cursor: pointer; font-weight: 500;
-  font-size: 13px; transition: background 0.15s;
-}
-.w-expander-head:hover { background: var(--bg-elevated); }
-.w-expander-arrow { transition: transform 0.2s var(--ease-out); font-size: 10px; }
-.w-expander.open .w-expander-arrow { transform: rotate(90deg); }
-.w-expander-body { padding: 0 1rem 1rem; display: none; }
-.w-expander.open .w-expander-body { display: block; }
-
-/* File uploader */
-.w-uploader {
-  border: 2px dashed var(--border); border-radius: var(--radius-md);
-  padding: 1.5rem; text-align: center; cursor: pointer;
-  transition: all 0.15s; margin: 0.5rem 0;
-}
-.w-uploader:hover, .w-uploader.dragover {
-  border-color: var(--accent); background: var(--accent-ghost);
-}
-.w-uploader-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
-.w-uploader-hint { font-size: 11px; color: var(--text-tertiary); }
-.w-uploader-files { margin-top: 8px; font-size: 12px; color: var(--accent); }
-.w-uploader input { display: none; }
-
-/* Divider */
-.w-divider { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
-
-/* Spinner */
-.w-spinner { display: flex; align-items: center; gap: 10px; padding: 1rem; color: var(--text-secondary); font-size: 13px; }
-.w-spinner-dot { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* Toast */
-.toast-container {
-  position: fixed; top: 16px; right: 16px; z-index: 1000;
-  display: flex; flex-direction: column; gap: 8px;
-  pointer-events: none;
-}
-.toast {
-  background: var(--bg-surface); border: 1px solid var(--border);
-  border-radius: var(--radius-md); padding: 12px 18px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-  font-size: 13px; color: var(--text-primary);
-  display: flex; align-items: center; gap: 10px;
-  animation: toastIn 0.3s var(--ease-spring), toastOut 0.3s 3.5s forwards;
-  pointer-events: auto; max-width: 380px;
-}
-@keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateX(40px); } }
-.toast-icon { font-size: 16px; flex-shrink: 0; }
-.toast-icon.success { color: var(--success); }
-.toast-icon.error { color: var(--error); }
-.toast-icon.warning { color: var(--warning); }
-.toast-icon.info { color: var(--accent); }
-
-/* ── Input area ─────────────────────────────────────────── */
-.ia {
-  padding: 1rem 1.5rem 1.5rem; border-top: 1px solid var(--border);
-  background: var(--bg-base); width: 100%;
-}
-.iaw { max-width: var(--max-content); margin: 0 auto; }
-.iw {
-  display: flex; align-items: flex-end; gap: 10px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border); border-radius: var(--radius-xl);
-  padding: 0.85rem 0.85rem 0.85rem 1.25rem;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-}
-.iw:focus-within {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--accent-glow), 0 4px 16px rgba(0,0,0,0.05);
-}
-.ci {
-  flex: 1; background: transparent; border: none; outline: none;
-  color: var(--text-primary); font-family: var(--font-sans);
-  line-height: 1.6; font-size: 15px;
-  resize: none; max-height: 160px; overflow-y: auto; padding: 0;
-}
-.ci::placeholder { color: var(--text-tertiary); }
-.ci::-webkit-scrollbar { width: 3px; }
-.ci::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
-.sb2 {
-  width: 38px; height: 38px; border-radius: 12px; border: none;
-  background: var(--accent); color: var(--bg-surface);
-  cursor: pointer; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 17px; font-weight: 600;
-  box-shadow: 0 2px 10px var(--accent-glow);
-  transition: background 0.15s, transform 0.12s var(--ease-spring), box-shadow 0.15s;
-}
-.sb2:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 5px 18px var(--accent-glow); }
-.sb2:active:not(:disabled) { transform: translateY(0); }
-.sb2:disabled { background: var(--bg-elevated); color: var(--text-tertiary); cursor: not-allowed; box-shadow: none; }
-.stb {
-  width: 38px; height: 38px; border-radius: 12px;
-  border: 1px solid var(--border-strong); background: var(--bg-elevated);
-  color: var(--error); cursor: pointer; flex-shrink: 0;
-  display: none; align-items: center; justify-content: center;
-  font-size: 13px; transition: all 0.15s;
-}
-.stb.vis { display: flex; }
-.stb:hover { background: color-mix(in oklch, var(--error) 10%, var(--bg-elevated)); border-color: var(--error); }
-.ih {
-  font-size: 11px; color: var(--text-tertiary);
-  text-align: center; margin-top: 0.625rem;
-}
-
-/* Connection banner */
-.conn-banner {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 999;
-  background: var(--error); color: var(--bg-surface); padding: 6px 16px;
-  font-size: 12px; text-align: center; font-weight: 500;
-  display: none;
-}
-.conn-banner.show { display: block; }
-
-/* ── Scrollbar ──────────────────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
-
-/* ── Responsive ─────────────────────────────────────────── */
-@media (max-width: 900px) {
-  .sidebar {
-    position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
-    transform: translateX(-100%);
-    transition: transform 0.3s var(--ease-out);
-  }
-  .sidebar.open { transform: translateX(0); }
-  .menu-btn { display: flex !important; position: fixed; top: 12px; left: 12px; z-index: 101; }
-  .main { padding-left: 0; }
-  .welcome { padding-left: 1rem; }
-  .mb { max-width: 100%; }
-  .toast-container { left: 16px; right: 16px; }
-  .toast { max-width: 100%; }
-}
-.menu-btn {
-  display: none; width: 34px; height: 34px; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--bg-surface);
-  color: var(--text-secondary); cursor: pointer;
-  align-items: center; justify-content: center; font-size: 15px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
-}
-.sidebar-backdrop {
-  display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,0.25); z-index: 99;
-}
-.sidebar-backdrop.open { display: block; }
-
-/* Print */
-@media print {
-  .sidebar, .ia, .conn-banner, .menu-btn { display: none !important; }
-  .main { padding: 0; }
-  .mwrap { overflow: visible; }
-}
+/*{{STYLES}}*/
 </style>
 </head>
 <body>
-<button class="menu-btn" id="menuBtn" aria-label="Open sidebar menu" title="Open sidebar">&#9776;</button>
-<div class="sidebar-backdrop" id="sbBackdrop"></div>
-<div class="conn-banner" id="connBanner" role="alert">Connection lost. Reconnecting...</div>
+<a class="skip-link" href="#ci">Skip to message input</a>
+<button class="menu-btn" id="menuBtn" aria-label="Open sidebar menu" title="Menu" aria-controls="sidebar" aria-expanded="false">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+</button>
+<div class="sidebar-backdrop" id="sbBackdrop" hidden></div>
+<div class="conn-banner" id="connBanner" role="alert" aria-live="assertive">Connection lost — reconnecting automatically…</div>
 
 <div class="app">
   <aside class="sidebar" id="sidebar" role="navigation" aria-label="Chat sidebar">
@@ -757,110 +31,128 @@ body {
         <div class="logo-mark" aria-hidden="true">{{LOGO}}</div>
         <span class="logo-text">{{TITLE}}</span>
       </div>
-      <div class="model-badge" id="modelBadge" title="Provider status">
-        <span id="st">Connecting...</span>
+      <div class="model-badge" id="modelBadge" title="Provider status" role="status" aria-live="polite">
+        <span id="st">Connecting…</span>
       </div>
       <div class="sb-actions">
-        <button class="sb-btn primary" id="newBtn" aria-label="Start new conversation">+ New chat</button>
-        <button class="sb-btn" id="sysBtn" aria-label="Open settings">Settings</button>
+        <button class="sb-btn primary" id="newBtn" aria-label="Start new conversation">New chat</button>
+        <button class="sb-btn" id="sysBtn" aria-label="Open settings" aria-controls="sysPanel" aria-expanded="false">Settings</button>
       </div>
     </div>
 
-    <div class="sys-panel" id="sysPanel" aria-hidden="true">
+    <div class="sys-panel" id="sysPanel" aria-hidden="true" role="region" aria-label="Settings">
       <div class="sys-inner">
         <div class="setting-block">
-          <div class="sb-section-label">Theme</div>
-          <select class="theme-select" id="themeSelect" aria-label="Select theme"></select>
+          <label class="sb-section-label" for="themeSelect">Theme</label>
+          <select class="theme-select" id="themeSelect" aria-label="Select color theme"></select>
         </div>
         <div class="setting-block">
-          <div class="sb-section-label">Font</div>
-          <div class="font-opts" role="group" aria-label="Font style">
-            <button class="font-opt active" data-font="sans" aria-pressed="true">Sora</button>
-            <button class="font-opt" data-font="serif" aria-pressed="false">Cormorant</button>
-            <button class="font-opt" data-font="mono" aria-pressed="false">Mono</button>
+          <div class="sb-section-label" id="fontLabel">Typeface</div>
+          <div class="font-opts" role="group" aria-labelledby="fontLabel">
+            <button type="button" class="font-opt active" data-font="sans" aria-pressed="true">Sora</button>
+            <button type="button" class="font-opt" data-font="serif" aria-pressed="false">Serif</button>
+            <button type="button" class="font-opt" data-font="mono" aria-pressed="false">Mono</button>
           </div>
         </div>
         <div class="setting-block">
-          <div class="sb-section-label">Text Size</div>
-          <div class="size-opts" role="group" aria-label="Text size">
-            <button class="size-opt" data-size="sm">A</button>
-            <button class="size-opt active" data-size="md">A</button>
-            <button class="size-opt" data-size="lg">A</button>
+          <div class="sb-section-label" id="sizeLabel">Text size</div>
+          <div class="size-opts" role="group" aria-labelledby="sizeLabel">
+            <button type="button" class="size-opt" data-size="sm" aria-label="Small text" aria-pressed="false">A</button>
+            <button type="button" class="size-opt active" data-size="md" aria-label="Medium text" aria-pressed="true">A</button>
+            <button type="button" class="size-opt" data-size="lg" aria-label="Large text" aria-pressed="false">A</button>
           </div>
         </div>
         <div class="setting-block">
-          <div class="sb-section-label">System Prompt</div>
-          <textarea class="sys-ta" id="sysTa" placeholder="You are a helpful assistant..." aria-label="System prompt"></textarea>
-          <button class="sys-save" id="sysSave">Save & restart</button>
+          <label class="sb-section-label" for="sysTa">System prompt</label>
+          <textarea class="sys-ta" id="sysTa" placeholder="You are a helpful assistant…" aria-label="System prompt"></textarea>
+          <button type="button" class="sys-save" id="sysSave">Apply prompt</button>
         </div>
       </div>
     </div>
 
-    <div class="sb-tools" id="sbTools" style="display:none">
+    <div class="sb-tools" id="sbTools" style="display:none" role="region" aria-label="Available tools">
       <div class="sb-tools-head">
-        <div class="sb-section-label">Tools</div>
-        <span class="tools-count" id="toolsCount"></span>
+        <div class="sb-section-label" id="toolsLabel">Tools</div>
+        <span class="tools-count" id="toolsCount" aria-labelledby="toolsLabel"></span>
       </div>
       <div id="toolsList"></div>
     </div>
 
-    <div class="sb-convs" id="convList">
-      <div style="padding:1rem .75rem;font-size:12px;color:var(--text-tertiary);text-align:center">No conversations yet</div>
+    <div class="sb-convs" id="convList" role="list" aria-label="Past conversations">
+      <div class="sb-empty">
+        <div class="sb-empty-title">No chats yet</div>
+        <div class="sb-empty-sub">Start a conversation — it will show up here so you can return later.</div>
+      </div>
     </div>
 
     <div class="sb-foot">
-      <span class="sb-foot-text" id="sbFootText">ChatUI v0.0.1</span>
+      <span class="sb-foot-text" id="sbFootText">ChatUI</span>
       <div class="sb-foot-actions">
-        <button class="ib" id="impBtn" title="Import conversation" aria-label="Import conversation">&#8593;</button>
-        <button class="ib" id="expBtn" title="Export as Markdown" aria-label="Export conversation">&#8595;</button>
+        <button type="button" class="ib" id="impBtn" title="Import conversation" aria-label="Import conversation">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+        </button>
+        <button type="button" class="ib" id="expBtn" title="Export as Markdown" aria-label="Export conversation as Markdown">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>
+        </button>
       </div>
     </div>
   </aside>
 
-  <main class="main" role="main">
+  <main class="main" id="main" role="main">
     <div class="mwrap" id="mwrap">
-      <div class="welcome" id="welcome">
+      <div class="welcome" id="welcome" aria-labelledby="welcomeHeading">
         <div class="welcome-kicker">{{TITLE}}</div>
-        <h1 class="welcome-title">{{WELCOME_TITLE}}</h1>
+        <h1 class="welcome-title" id="welcomeHeading">{{WELCOME_TITLE}}</h1>
+        <div class="welcome-rule" aria-hidden="true"></div>
         <p class="welcome-sub" id="welcomeSub"></p>
-        <div class="chips" id="chipsRow"></div>
+        <div class="chips" id="chipsRow" role="group" aria-label="Suggested prompts"></div>
       </div>
-      <div class="mlist" id="mlist" role="feed"></div>
+      <div class="mlist" id="mlist" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation"></div>
     </div>
 
     <div class="ia">
       <div class="iaw">
-        <div class="iw">
-          <textarea id="ci" class="ci" placeholder="Message {{TITLE}}..." rows="1" maxlength="10000" aria-label="Chat input"></textarea>
-          <button class="stb" id="stb" title="Stop generation" aria-label="Stop generating">&#9632;</button>
-          <button class="sb2" id="sb2" title="Send message" aria-label="Send message">&#8593;</button>
+        <div class="iw" role="group" aria-label="Message composer">
+          <textarea id="ci" class="ci" placeholder="Message {{TITLE}}…" rows="1" maxlength="12000" aria-label="Chat input"></textarea>
+          <button class="stb" id="stb" title="Stop generation" aria-label="Stop generating">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+          </button>
+          <button class="sb2" id="sb2" title="Send message" aria-label="Send message">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+          </button>
         </div>
-        <div class="ih">Enter to send &middot; Shift+Enter for new line &middot; Esc to stop</div>
+        <div class="ih"><kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline · <kbd>Esc</kbd> stop</div>
       </div>
     </div>
   </main>
 </div>
 
 <div class="toast-container" id="toastContainer" aria-live="polite"></div>
-
 <script>
 /* ════════════════════════════════════════════════════════════════════════════
-   ChatUI v0.0.1 — Frontend Application
+   ChatUI — Frontend Application
    ════════════════════════════════════════════════════════════════════════════ */
 
 marked.setOptions({ breaks: true, gfm: true });
 
-const WS_URL = `ws://${location.host}/ws`;
-
 /* ── Template data ─────────────────────────────────────── */
 const THEME_DATA   = {{THEMES_JSON}};
 const ACTIVE_THEME = '{{ACTIVE_THEME}}';
+const AUTH_TOKEN   = '{{AUTH_TOKEN}}';
+const MAX_FILE_MB  = 2;
 
 const THEME_LABELS = {
   manuscript: 'Manuscript', atoll: 'Atoll', grain: 'Grain',
   ink: 'Ink', obsidian: 'Obsidian', nocturne: 'Nocturne',
   rose: 'Rose', mint: 'Mint', midnight: 'Midnight',
 };
+
+function buildWsUrl() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const q = AUTH_TOKEN ? `?token=${encodeURIComponent(AUTH_TOKEN)}` : '';
+  return `${proto}://${location.host}/ws${q}`;
+}
+const WS_URL = buildWsUrl();
 
 /* ═══════════════════════════════════════════════════════════
    STATE
@@ -893,10 +185,22 @@ const addEl = h => {
    WEBSOCKET
    ═══════════════════════════════════════════════════════════ */
 function connect() {
+  if (S.ws && (S.ws.readyState === 0 || S.ws.readyState === 1)) return;
   S.ws = new WebSocket(WS_URL);
   S.ws.onopen = () => { S.connected = true; S.retries = 0; setStatus(true); };
   S.ws.onmessage = e => { try { handle(JSON.parse(e.data)); } catch(err) { console.error('Parse error:', err); } };
-  S.ws.onclose = () => { S.connected = false; setStatus(false); if (S.retries < 8) { S.retries++; setTimeout(connect, 1200 + S.retries * 600); } };
+  S.ws.onclose = (ev) => {
+    S.connected = false;
+    setStatus(false);
+    if (ev && ev.code === 4001) {
+      document.getElementById('st').textContent = 'Unauthorized';
+      return;
+    }
+    if (S.retries < 10) {
+      S.retries++;
+      setTimeout(connect, Math.min(1000 * Math.pow(1.5, S.retries), 15000));
+    }
+  };
   S.ws.onerror = () => { S.connected = false; setStatus(false); };
 }
 
@@ -917,7 +221,7 @@ function handle(d) {
   switch (d.type) {
 
     case 'config':
-      document.getElementById('st').textContent = `${d.provider} \u00b7 ${d.model}`;
+      document.getElementById('st').textContent = `${d.provider} · ${d.model}`;
       if (d.session) S.session._id = d.session;
       break;
 
@@ -947,7 +251,7 @@ function handle(d) {
       break;
 
     case 'widgets':
-      if (d.widgets) d.widgets.forEach(renderWidget);
+      if (d.widgets) renderWidgetGroup(d.widgets);
       break;
 
     case 'end':
@@ -1011,13 +315,13 @@ function handle(d) {
    MESSAGE RENDERING
    ═══════════════════════════════════════════════════════════ */
 function appendUser(t) {
-  addEl(`<div class="msg user"><div class="av user" aria-label="You">You</div><div class="mb"><div class="bub"><div class="prose">${esc(t)}</div></div><div class="mmeta"><span class="mt">${now()}</span></div></div></div>`);
+  addEl(`<div class="msg user"><div class="av user" aria-label="You"><span aria-hidden="true">You</span></div><div class="mb"><div class="bub"><div class="prose">${esc(t)}</div></div><div class="mmeta"><span class="mt">${now()}</span></div></div></div>`);
   if (S.ascroll) scr();
 }
 
 function showThink() {
   const id = 'tk' + Date.now(); S.thinkId = id;
-  addEl(`<div class="msg ai" id="${id}"><div class="av ai" aria-label="AI">AI</div><div class="mb"><div class="bub"><div class="think" aria-label="Thinking"><div class="td"></div><div class="td"></div><div class="td"></div></div></div></div></div>`);
+  addEl(`<div class="msg ai" id="${id}"><div class="av ai" aria-label="AI"><span aria-hidden="true">◆</span></div><div class="mb"><div class="bub bub-ghost"><div class="think" aria-label="Thinking"><span class="think-pulse"></span><span class="think-label">Thinking</span></div></div></div></div>`);
   if (S.ascroll) scr();
 }
 
@@ -1036,6 +340,8 @@ function rmThink() {
       <button class="ma-btn" onclick="copyMsg('${tid}')" aria-label="Copy message">Copy</button>
     </div>
   `);
+  const bub = el.querySelector('.bub');
+  if (bub) bub.classList.remove('bub-ghost');
   S.tbEl = document.getElementById('tb' + tid);
   S.thinkId = null;
 }
@@ -1057,7 +363,7 @@ function finalise(r, usage) {
   if (S.currentAiMsg) {
     const actions = S.currentAiMsg.querySelector('.msg-actions');
     if (actions) {
-      actions.insertAdjacentHTML('beforeend', `<button class="ma-btn regen" onclick="regenerate()" aria-label="Regenerate response">Retry</button>`);
+      actions.insertAdjacentHTML('beforeend', `<button class="ma-btn regen" onclick="regenerate()" aria-label="Regenerate response">Regenerate</button>`);
     }
     const el = S.currentAiMsg;
     el.querySelectorAll('.prose a').forEach(a => { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer'); });
@@ -1066,7 +372,7 @@ function finalise(r, usage) {
 }
 
 function showErr(t) {
-  addEl(`<div class="msg ai"><div class="av ai" aria-label="AI">AI</div><div class="mb"><div class="bub" style="border-color:color-mix(in oklch, var(--error) 30%, var(--border))"><div class="prose" style="color:var(--error)" role="alert">&#9888; ${esc(t)}</div></div></div></div>`);
+  addEl(`<div class="msg ai"><div class="av ai" aria-label="AI"><span aria-hidden="true">◆</span></div><div class="mb"><div class="bub bub-error"><div class="prose" role="alert">${esc(t)}</div></div></div></div>`);
   if (S.ascroll) scr();
 }
 
@@ -1075,20 +381,20 @@ function showErr(t) {
    ═══════════════════════════════════════════════════════════ */
 function showToolCard(id, name, inputs) {
   const args = Object.entries(inputs || {}).map(([k, v]) =>
-    `<div class="tar"><span class="tak">${esc(k)}</span><span style="color:var(--text-tertiary)" aria-hidden="true">\u2192</span><span class="tav">${esc(JSON.stringify(v))}</span></div>`
+    `<div class="tar"><span class="tak">${esc(k)}</span><span class="tav">${esc(JSON.stringify(v))}</span></div>`
   ).join('');
-  addEl(`<div class="tc" id="tc${id}"><div class="tch"><span style="color:var(--tool-text)" aria-hidden="true">⚡</span><span class="tfn">${esc(name)}()</span><span class="tbg run" id="tbg${id}">running</span></div><div class="tcb" id="tcb${id}"><div>${args}</div></div></div>`);
+  addEl(`<div class="tc" id="tc${id}"><div class="tch"><span class="tfn">${esc(name)}</span><span class="tbg run" id="tbg${id}">Running</span></div><div class="tcb" id="tcb${id}">${args || '<div class="tar muted">No arguments</div>'}</div></div>`);
   if (S.ascroll) scr();
 }
 
 function updateToolCard(id, res, name) {
   const bg = document.getElementById('tbg' + id);
-  if (bg) { bg.textContent = 'done'; bg.classList.remove('run'); }
+  if (bg) { bg.textContent = 'Done'; bg.classList.remove('run'); bg.classList.add('done'); }
   const cb = document.getElementById('tcb' + id);
   if (!cb) return;
   let disp = res;
   try { const p = JSON.parse(res); disp = JSON.stringify(p, null, 0); if (disp.length > 200) disp = disp.slice(0, 200) + '\u2026'; } catch (_) {}
-  cb.insertAdjacentHTML('beforeend', `<hr class="tdiv"><div class="trr"><span class="tra" aria-hidden="true">\u2192</span><span class="trv">${esc(disp)}</span></div>`);
+  cb.insertAdjacentHTML('beforeend', `<div class="tdiv"></div><div class="trr"><span class="tra">result</span><span class="trv">${esc(disp)}</span></div>`);
   if (S.ascroll) scr();
 }
 
@@ -1099,7 +405,7 @@ function showComponent(name, html) {
   const wrapper = document.createElement('div');
   wrapper.className = 'comp-card';
   const bodyId = 'cb-' + Date.now();
-  wrapper.innerHTML = `<div class="comp-head"><span class="comp-icon" aria-hidden="true">\u25C8</span><span class="comp-name">${esc(name)}</span><span class="comp-badge">component</span></div><div class="comp-body" id="${bodyId}"></div>`;
+  wrapper.innerHTML = `<div class="comp-head"><span class="comp-name">${esc(name)}</span><span class="comp-badge">Component</span></div><div class="comp-body" id="${bodyId}"></div>`;
   mlist().appendChild(wrapper);
   const body = document.getElementById(bodyId);
   try { body.appendChild(document.createRange().createContextualFragment(html)); } catch (_) { body.innerHTML = html; }
@@ -1111,7 +417,7 @@ function showToolsPanel(tools) {
   document.getElementById('sbTools').style.display = 'block';
   document.getElementById('toolsCount').textContent = tools.length;
   document.getElementById('toolsList').innerHTML = tools.map(t =>
-    `<div class="tool-item"><span class="tool-item-icon" aria-hidden="true">⚡</span><div><div class="tool-item-name">${esc(t.name)}()</div>${t.description ? `<div class="tool-item-desc">${esc(t.description.slice(0, 70))}${t.description.length > 70 ? '\u2026' : ''}</div>` : ''}</div></div>`
+    `<div class="tool-item"><div class="tool-item-dot" aria-hidden="true"></div><div><div class="tool-item-name">${esc(t.name)}</div>${t.description ? `<div class="tool-item-desc">${esc(t.description.slice(0, 70))}${t.description.length > 70 ? '\u2026' : ''}</div>` : ''}</div></div>`
   ).join('');
 }
 
@@ -1126,14 +432,170 @@ function showComponentsPanel(components) {
 
 /* ═══════════════════════════════════════════════════════════
    WIDGET SYSTEM
+   Layout-first: group buttons / metrics, use fr columns, flat shells
    ═══════════════════════════════════════════════════════════ */
-function renderWidget(wd) {
+const FLAT_WIDGETS = new Set(['button', 'divider', 'spinner']);
+
+function renderWidgetGroup(widgets) {
+  if (!widgets || !widgets.length) return;
+  let i = 0;
+  while (i < widgets.length) {
+    const w = widgets[i];
+    if (w.widget === 'columns') {
+      const ratios = w.props.ratios || [1, 1];
+      const n = ratios.length;
+      const kids = [];
+      i++;
+      while (i < widgets.length && widgets[i].widget !== 'columns_end' && kids.length < n) {
+        if (widgets[i].widget === 'columns' || widgets[i].widget === 'expander') break;
+        kids.push(widgets[i]);
+        i++;
+      }
+      if (i < widgets.length && widgets[i].widget === 'columns_end') i++;
+      renderColumns(ratios, kids);
+      continue;
+    }
+    if (w.widget === 'expander') {
+      const body = [];
+      i++;
+      while (i < widgets.length && widgets[i].widget !== 'expander_end') {
+        body.push(widgets[i]);
+        i++;
+      }
+      if (i < widgets.length && widgets[i].widget === 'expander_end') i++;
+      renderExpander(w, body);
+      continue;
+    }
+    if (w.widget === 'columns_end' || w.widget === 'expander_end') {
+      i++;
+      continue;
+    }
+    if (w.widget === 'toast') {
+      showToast(w.props.message, w.props.icon || 'info');
+      i++;
+      continue;
+    }
+    /* Consecutive buttons → single action row (centered label, shared gap) */
+    if (w.widget === 'button') {
+      const btns = [];
+      while (i < widgets.length && widgets[i].widget === 'button') {
+        btns.push(widgets[i]);
+        i++;
+      }
+      renderButtonGroup(btns);
+      continue;
+    }
+    /* Consecutive metrics → responsive metric strip */
+    if (w.widget === 'metric') {
+      const metrics = [];
+      while (i < widgets.length && widgets[i].widget === 'metric') {
+        metrics.push(widgets[i]);
+        i++;
+      }
+      renderMetricGroup(metrics);
+      continue;
+    }
+    renderWidget(w);
+    i++;
+  }
+}
+
+function mountWidget(parent, w) {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = buildWidgetHTML(w);
+  bindWidgetEvents(wrap, w);
+  while (wrap.firstChild) parent.appendChild(wrap.firstChild);
+}
+
+function renderButtonGroup(btns) {
+  if (!btns.length) return;
+  const card = document.createElement('div');
+  card.className = 'widget-card flat';
+  const row = document.createElement('div');
+  row.className = 'w-actions';
+  row.setAttribute('role', 'group');
+  row.setAttribute('aria-label', 'Actions');
+  btns.forEach(w => mountWidget(row, w));
+  card.appendChild(row);
+  mlist().appendChild(card);
+  if (S.ascroll) scr();
+}
+
+function renderMetricGroup(metrics) {
+  if (!metrics.length) return;
+  if (metrics.length === 1) {
+    renderWidget(metrics[0]);
+    return;
+  }
   const card = document.createElement('div');
   card.className = 'widget-card';
-  card.dataset.widgetId = wd.id;
-  card.innerHTML = buildWidgetHTML(wd);
+  const grid = document.createElement('div');
+  grid.className = 'w-metrics';
+  metrics.forEach(w => {
+    const cell = document.createElement('div');
+    cell.innerHTML = buildWidgetHTML(w);
+    grid.appendChild(cell);
+  });
+  card.appendChild(grid);
   mlist().appendChild(card);
-  bindWidgetEvents(card, wd);
+  if (S.ascroll) scr();
+}
+
+function renderColumns(ratios, kids) {
+  const grid = document.createElement('div');
+  grid.className = 'widget-card w-columns';
+  grid.style.gridTemplateColumns = (ratios || [1, 1]).map(r => `${Number(r) || 1}fr`).join(' ');
+  kids.forEach(w => {
+    const cell = document.createElement('div');
+    if (w.widget === 'button') {
+      const row = document.createElement('div');
+      row.className = 'w-actions';
+      mountWidget(row, w);
+      cell.appendChild(row);
+    } else {
+      mountWidget(cell, w);
+    }
+    grid.appendChild(cell);
+  });
+  mlist().appendChild(grid);
+  if (S.ascroll) scr();
+}
+
+function renderExpander(w, kids) {
+  const card = document.createElement('div');
+  card.className = 'widget-card';
+  card.innerHTML = buildWidgetHTML(w);
+  const body = card.querySelector('.w-expander-body');
+  kids.forEach(child => {
+    const wrap = document.createElement('div');
+    if (child.widget === 'button') {
+      wrap.className = 'w-actions';
+    }
+    mountWidget(wrap, child);
+    if (body) body.appendChild(wrap);
+  });
+  mlist().appendChild(card);
+  if (S.ascroll) scr();
+}
+
+function renderWidget(wd) {
+  if (!wd || wd.widget === 'toast') {
+    if (wd && wd.widget === 'toast') showToast(wd.props.message, wd.props.icon || 'info');
+    return;
+  }
+  const card = document.createElement('div');
+  card.className = 'widget-card' + (FLAT_WIDGETS.has(wd.widget) ? ' flat' : '');
+  card.dataset.widgetId = wd.id;
+  if (wd.widget === 'button') {
+    const row = document.createElement('div');
+    row.className = 'w-actions';
+    mountWidget(row, wd);
+    card.appendChild(row);
+  } else {
+    card.innerHTML = buildWidgetHTML(wd);
+    bindWidgetEvents(card, wd);
+  }
+  mlist().appendChild(card);
   if (S.ascroll) scr();
 }
 
@@ -1144,7 +606,7 @@ function buildWidgetHTML(w) {
       return `<button class="w-btn ${esc(w.props.variant || 'primary')}" data-widget-action="button_click" data-widget-key="${esc(w.props.key || '')}" ${w.props.disabled ? 'disabled' : ''}>${esc(w.props.label)}</button>`;
 
     case 'text_input':
-      return `<div class="w-input-group"><label class="w-input-label">${esc(w.props.label)}</label><div class="w-input-field"><input type="text" class="w-input" data-widget-key="${esc(w.props.key)}" placeholder="${esc(w.props.placeholder || '')}" value="${esc(w.props.value || '')}"><button class="w-input-submit" data-widget-action="text_input_submit" data-widget-key="${esc(w.props.key)}">Submit</button></div></div>`;
+      return `<div class="w-input-group"><label class="w-input-label">${esc(w.props.label)}</label><div class="w-input-field"><input type="text" class="w-input" data-widget-key="${esc(w.props.key)}" placeholder="${esc(w.props.placeholder || '')}" value="${esc(w.props.value || '')}" aria-label="${esc(w.props.label)}"><button class="w-input-submit" data-widget-action="text_input_submit" data-widget-key="${esc(w.props.key)}">Send</button></div></div>`;
 
     case 'selectbox':
       return `<div class="w-select"><label class="w-input-label">${esc(w.props.label)}</label><select data-widget-action="selectbox_change" data-widget-key="${esc(w.props.key)}">${(w.props.options || []).map((o, i) => `<option value="${esc(o)}" ${i === (w.props.index || 0) ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
@@ -1163,7 +625,7 @@ function buildWidgetHTML(w) {
       return `<div class="w-progress">${w.props.label ? '<div class="w-progress-label"><span>' + esc(w.props.label) + '</span><span>' + pct + '%</span></div>' : ''}<div class="w-progress-bar"><div class="w-progress-fill" style="width:${pct}%"></div></div></div>`;
 
     case 'status':
-      return `<div class="w-status ${w.props.expanded ? 'open' : ''}" data-widget-id="${w.id}"><div class="w-status-head" onclick="this.parentElement.classList.toggle('open')"><span class="w-status-dot ${esc(w.props.state)}"></span><span>${esc(w.props.label)}</span><span style="font-size:10px;color:var(--text-tertiary);margin-left:auto">${esc(w.props.state)}</span></div><div class="w-status-body"></div></div>`;
+      return `<div class="w-status ${w.props.expanded ? 'open' : ''}" data-widget-id="${w.id}"><button type="button" class="w-status-head" aria-expanded="${w.props.expanded ? 'true' : 'false'}" onclick="const p=this.parentElement;const o=!p.classList.contains('open');p.classList.toggle('open',o);this.setAttribute('aria-expanded',String(o))"><span class="w-status-dot ${esc(w.props.state)}" aria-hidden="true"></span><span>${esc(w.props.label)}</span><span class="w-status-state">${esc(w.props.state)}</span></button><div class="w-status-body"></div></div>`;
 
     case 'table':
       const cols = (w.props.columns || []).map(c => `<th>${esc(c)}</th>`).join('');
@@ -1186,28 +648,26 @@ function buildWidgetHTML(w) {
       return `<div class="w-metric"><div class="w-metric-label">${esc(w.props.label)}</div><div class="w-metric-val">${esc(String(w.props.value))}</div>${w.props.delta ? `<div class="w-metric-delta ${String(w.props.delta).startsWith('+') ? 'up' : String(w.props.delta).startsWith('-') ? 'down' : ''}">${esc(w.props.delta)}</div>` : ''}</div>`;
 
     case 'columns':
-      const ratios = (w.props.ratios || [1, 1]).map(r => `${(r / (w.props.ratios || [1, 1]).reduce((a, b) => a + b, 0) * 100).toFixed(1)}%`).join(' ');
-      return `<div class="w-columns" style="display:grid;grid-template-columns:${ratios};gap:1rem" data-cols="open"></div>`;
+      const colFr = (w.props.ratios || [1, 1]).map(r => `${Number(r) || 1}fr`).join(' ');
+      return `<div class="w-columns" style="grid-template-columns:${colFr}" data-cols="open"></div>`;
 
     case 'columns_end':
       return '';
 
     case 'expander':
-      return `<div class="w-expander ${w.props.expanded ? 'open' : ''}"><div class="w-expander-head" onclick="this.parentElement.classList.toggle('open')"><span class="w-expander-arrow" aria-hidden="true">\u25B6</span><span>${esc(w.props.label)}</span></div><div class="w-expander-body"></div></div>`;
+      return `<div class="w-expander ${w.props.expanded ? 'open' : ''}"><button type="button" class="w-expander-head" aria-expanded="${w.props.expanded ? 'true' : 'false'}" onclick="const p=this.parentElement;const o=!p.classList.contains('open');p.classList.toggle('open',o);this.setAttribute('aria-expanded',String(o))"><span class="w-expander-arrow" aria-hidden="true">\u25B6</span><span>${esc(w.props.label)}</span></button><div class="w-expander-body"></div></div>`;
 
     case 'expander_end':
       return '';
 
     case 'toast':
-      const icons = { info: '\u2139', success: '\u2713', warning: '\u26A0', error: '\u2717' };
-      showToast(w.props.message, w.props.icon || 'info');
       return '';
 
     case 'file_uploader':
-      return `<div class="w-uploader" data-widget-action="file_upload" data-widget-key="${esc(w.props.key)}" data-accept="${esc(w.props.accept || '')}" data-multiple="${w.props.multiple ? 'true' : 'false'}"><div class="w-uploader-label">${esc(w.props.label)}</div><div class="w-uploader-hint">Click or drag files here</div><div class="w-uploader-files"></div><input type="file" accept="${esc(w.props.accept || '')}" ${w.props.multiple ? 'multiple' : ''}></div>`;
+      return `<div class="w-uploader" data-widget-action="file_upload" data-widget-key="${esc(w.props.key)}" data-accept="${esc(w.props.accept || '')}" data-multiple="${w.props.multiple ? 'true' : 'false'}"><div class="w-uploader-label">${esc(w.props.label)}</div><div class="w-uploader-hint">Drop a file here, or click to browse · max ${MAX_FILE_MB} MB each</div><div class="w-uploader-files"></div><input type="file" accept="${esc(w.props.accept || '')}" ${w.props.multiple ? 'multiple' : ''}></div>`;
 
     case 'spinner':
-      return `<div class="w-spinner"><div class="w-spinner-dot"></div><span>${esc(w.props.label || 'Loading...')}</span></div>`;
+      return `<div class="w-spinner" role="status" aria-live="polite"><div class="w-spinner-dot" aria-hidden="true"></div><span>${esc(w.props.label || 'Working on it…')}</span></div>`;
 
     default:
       return '';
@@ -1268,20 +728,25 @@ function bindWidgetEvents(card, w) {
 
 function handleFiles(files, w, uploader) {
   if (!files || !files.length) return;
-  const names = Array.from(files).map(f => f.name).join(', ');
+  const maxBytes = MAX_FILE_MB * 1024 * 1024;
+  const list = Array.from(files).slice(0, 10);
+  const tooBig = list.filter(f => f.size > maxBytes);
+  if (tooBig.length) {
+    showToast(`File too large (max ${MAX_FILE_MB} MB): ${tooBig[0].name}`, 'error');
+    return;
+  }
+  const names = list.map(f => f.name).join(', ');
   const filesDisplay = uploader.querySelector('.w-uploader-files');
   if (filesDisplay) filesDisplay.textContent = 'Selected: ' + names;
-  const readers = [];
-  Array.from(files).forEach(file => {
+  const readers = list.map(file => new Promise((resolve, reject) => {
     const reader = new FileReader();
-    readers.push(new Promise((resolve) => {
-      reader.onload = e => resolve({ name: file.name, type: file.type, size: file.size, content: e.target.result });
-      reader.readAsDataURL(file);
-    }));
-  });
+    reader.onload = e => resolve({ name: file.name, type: file.type, size: file.size, content: e.target.result });
+    reader.onerror = () => reject(new Error('Failed to read ' + file.name));
+    reader.readAsDataURL(file);
+  }));
   Promise.all(readers).then(results => {
     ws({ action: 'widget_event', event: 'file_upload', widget_id: w.id, key: w.props.key, value: names, data: { key: w.props.key, files: results } });
-  });
+  }).catch(err => showToast(err.message || 'Upload failed', 'error'));
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1354,6 +819,10 @@ function sendMsg() {
   const inp = document.getElementById('ci');
   const t = inp.value.trim();
   if (!t || S.streaming || !S.connected) return;
+  if (t.length > 12000) {
+    showToast('Message too long (max 12,000 characters)', 'warning');
+    return;
+  }
   document.getElementById('welcome').style.display = 'none';
   appendUser(t);
   S.msgHistory.push({ role: 'user', content: t });
@@ -1382,19 +851,26 @@ function stopGen() { ws({ action: 'stop' }); S.streaming = false; setInput(true)
 function saveConv() {
   if (!S.msgHistory.length) return;
   const id = S.aid || String(Date.now()); S.aid = id;
-  const title = (S.msgHistory.find(m => m.role === 'user') || { content: 'New conversation' }).content.slice(0, 50);
+  const first = S.msgHistory.find(m => m.role === 'user');
+  const title = ((first && first.content) || 'New conversation').slice(0, 50);
   const idx = S.convs.findIndex(c => c.id === id);
   const cv = { id, title, updatedAt: Date.now() };
   if (idx >= 0) S.convs[idx] = cv; else S.convs.unshift(cv);
-  if (S.convs.length > 50) S.convs = S.convs.slice(0, 50);
-  localStorage.setItem('cui3', JSON.stringify(S.convs));
+  if (S.convs.length > 50) {
+    S.convs.slice(50).forEach(old => localStorage.removeItem('cui_msgs_' + old.id));
+    S.convs = S.convs.slice(0, 50);
+  }
+  try {
+    localStorage.setItem('cui3', JSON.stringify(S.convs));
+    localStorage.setItem('cui_msgs_' + id, JSON.stringify(S.msgHistory));
+  } catch (_) { /* quota */ }
   renderConvs();
 }
 
 function renderConvs() {
   const el = document.getElementById('convList');
   if (!S.convs.length) {
-    el.innerHTML = '<div style="padding:1rem .75rem;font-size:12px;color:var(--text-tertiary);text-align:center">No conversations yet</div>';
+    el.innerHTML = '<div class="sb-empty"><div class="sb-empty-title">No chats yet</div><div class="sb-empty-sub">Start a conversation — it will show up here so you can return later.</div></div>';
     return;
   }
   el.innerHTML = S.convs.map(c =>
@@ -1402,16 +878,41 @@ function renderConvs() {
   ).join('');
 }
 
-function loadConv(id) { S.aid = id; renderConvs(); }
+function loadConv(id) {
+  if (S.streaming) return;
+  let msgs = [];
+  try { msgs = JSON.parse(localStorage.getItem('cui_msgs_' + id) || '[]'); } catch (_) { msgs = []; }
+  S.aid = id;
+  S.msgHistory = Array.isArray(msgs) ? msgs : [];
+  mlist().innerHTML = '';
+  document.getElementById('welcome').style.display = S.msgHistory.length ? 'none' : 'flex';
+  S.msgHistory.forEach(m => {
+    if (m.role === 'user') appendUser(m.content || '');
+    else if (m.role === 'assistant') {
+      const tid = 'hist' + Math.random().toString(36).slice(2, 9);
+      addEl(`<div class="msg ai" id="${tid}"><div class="av ai" aria-label="AI"><span aria-hidden="true">◆</span></div><div class="mb"><div class="bub"><div class="prose"></div></div><div class="mmeta"><span class="mt"></span></div></div></div>`);
+      const prose = document.getElementById(tid).querySelector('.prose');
+      prose.innerHTML = marked.parse(m.content || '');
+      prose.querySelectorAll('pre code').forEach(b => { hljs.highlightElement(b); addCodeHeader(b); });
+    }
+  });
+  // Server history is per-connection; loaded chats are view-only until new messages
+  ws({ action: 'clear' });
+  renderConvs();
+  if (S.ascroll) scr();
+  focusI();
+}
 
 function deleteConv(id) {
   S.convs = S.convs.filter(c => c.id !== id);
   localStorage.setItem('cui3', JSON.stringify(S.convs));
+  localStorage.removeItem('cui_msgs_' + id);
   if (S.aid === id) newChat();
   renderConvs();
 }
 
 function newChat() {
+  if (S.streaming) stopGen();
   S.aid = null; S.msgHistory = [];
   mlist().innerHTML = '';
   document.getElementById('welcome').style.display = 'flex';
@@ -1473,7 +974,9 @@ function setSize(size) {
   const SIZES = { sm: '14px', md: '15.5px', lg: '17px' };
   document.documentElement.style.setProperty('--font-size-base', SIZES[size] || '15.5px');
   document.querySelectorAll('.size-opt').forEach(b => {
-    b.classList.toggle('active', b.dataset.size === size);
+    const active = b.dataset.size === size;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', String(active));
   });
   localStorage.setItem('cui_size', size);
 }
@@ -1504,15 +1007,35 @@ function initWelcome() {
    ═══════════════════════════════════════════════════════════ */
 function toggleSys() {
   const panel = document.getElementById('sysPanel');
-  panel.classList.toggle('open');
-  panel.setAttribute('aria-hidden', String(!panel.classList.contains('open')));
+  const btn = document.getElementById('sysBtn');
+  const open = !panel.classList.contains('open');
+  panel.classList.toggle('open', open);
+  panel.setAttribute('aria-hidden', String(!open));
+  if (btn) {
+    btn.setAttribute('aria-expanded', String(open));
+    btn.setAttribute('aria-label', open ? 'Close settings' : 'Open settings');
+  }
+  if (open) {
+    const sel = document.getElementById('themeSelect');
+    if (sel) sel.focus();
+  }
 }
 function saveSystem() {
   const p = document.getElementById('sysTa').value.trim();
-  if (!p) return;
+  if (!p) {
+    showToast('Enter a system prompt before applying', 'warning');
+    return;
+  }
   ws({ action: 'update_system', prompt: p });
-  document.getElementById('sysPanel').classList.remove('open');
-  document.getElementById('sysPanel').setAttribute('aria-hidden', 'true');
+  const panel = document.getElementById('sysPanel');
+  const btn = document.getElementById('sysBtn');
+  panel.classList.remove('open');
+  panel.setAttribute('aria-hidden', 'true');
+  if (btn) {
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-label', 'Open settings');
+  }
+  showToast('System prompt applied — starting a fresh chat', 'success');
   newChat();
 }
 
@@ -1537,28 +1060,70 @@ function importConv() {
   input.onchange = e => {
     const file = e.target.files[0];
     if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Import file too large (max 2 MB)', 'error');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = ev => {
-      const text = ev.target.result;
-      S.msgHistory = [{ role: 'assistant', content: text }];
+      const text = String(ev.target.result || '');
+      const msgs = parseExportedMarkdown(text);
+      if (!msgs.length) {
+        showToast('Could not parse conversation from file', 'warning');
+        return;
+      }
+      newChat();
+      S.msgHistory = msgs;
       document.getElementById('welcome').style.display = 'none';
       mlist().innerHTML = '';
-      showErr('Import preview: loaded ' + text.length + ' characters from ' + file.name);
+      msgs.forEach(m => {
+        if (m.role === 'user') appendUser(m.content);
+        else {
+          const tid = 'imp' + Math.random().toString(36).slice(2, 9);
+          addEl(`<div class="msg ai" id="${tid}"><div class="av ai" aria-label="AI"><span aria-hidden="true">◆</span></div><div class="mb"><div class="bub"><div class="prose"></div></div></div></div>`);
+          const prose = document.getElementById(tid).querySelector('.prose');
+          prose.innerHTML = marked.parse(m.content || '');
+        }
+      });
       saveConv();
+      showToast('Imported ' + msgs.length + ' messages', 'success');
     };
     reader.readAsText(file);
   };
   input.click();
 }
 
+function parseExportedMarkdown(text) {
+  const parts = text.split(/\n---\n/).map(s => s.trim()).filter(Boolean);
+  const msgs = [];
+  for (const part of parts) {
+    const m = part.match(/^##\s+(You|AI)\s*\n+([\s\S]*)$/i);
+    if (!m) continue;
+    msgs.push({
+      role: m[1].toLowerCase() === 'you' ? 'user' : 'assistant',
+      content: m[2].trim(),
+    });
+  }
+  return msgs;
+}
+
 /* ═══════════════════════════════════════════════════════════
    MOBILE SIDEBAR
    ═══════════════════════════════════════════════════════════ */
-function toggleSidebar() {
+function toggleSidebar(force) {
   const sidebar = document.getElementById('sidebar');
   const backdrop = document.getElementById('sbBackdrop');
-  sidebar.classList.toggle('open');
-  backdrop.classList.toggle('open');
+  const menuBtn = document.getElementById('menuBtn');
+  const open = typeof force === 'boolean' ? force : !sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', open);
+  backdrop.classList.toggle('open', open);
+  if (open) backdrop.removeAttribute('hidden');
+  else backdrop.setAttribute('hidden', '');
+  if (menuBtn) {
+    menuBtn.setAttribute('aria-expanded', String(open));
+    menuBtn.setAttribute('aria-label', open ? 'Close sidebar menu' : 'Open sidebar menu');
+  }
+  document.body.classList.toggle('sidebar-open', open);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1569,6 +1134,8 @@ document.addEventListener('DOMContentLoaded', () => {
   renderConvs();
   initThemeDots();
   initWelcome();
+  const foot = document.getElementById('sbFootText');
+  if (foot) foot.textContent = 'ChatUI';
 
   document.querySelectorAll('.font-opt').forEach(btn =>
     btn.addEventListener('click', () => setFont(btn.dataset.font))
@@ -1607,6 +1174,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar && sidebar.classList.contains('open')) {
+        e.preventDefault();
+        toggleSidebar(false);
+        return;
+      }
+      const panel = document.getElementById('sysPanel');
+      if (panel && panel.classList.contains('open')) {
+        e.preventDefault();
+        toggleSys();
+        return;
+      }
+    }
     if (e.ctrlKey || e.metaKey) {
       if (e.key === 'k') { e.preventDefault(); toggleSidebar(); }
       if (e.key === 'n' && !S.streaming) { e.preventDefault(); newChat(); }

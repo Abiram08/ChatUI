@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, dev]
+  pull_request:
+    branches: [main, master, dev]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install package + dev deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run unit tests
+        run: pytest --cov=chatui --cov-report=term-missing
+
+      - name: Verify UI assets assemble
+        run: |
+          python -c "from chatui.ui.assets import render_html; from chatui.themes import get_css_vars; h=render_html(theme_vars=get_css_vars('manuscript')); assert '.w-btn' in h and 'skip-link' in h; print('assets ok', len(h))"

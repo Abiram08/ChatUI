@@ -1,0 +1,150 @@
+/* ── Main ───────────────────────────────────────────────── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  position: relative;
+}
+
+.mwrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: clamp(1.25rem, 3vw, 2.25rem) clamp(1rem, 3vw, 2rem) 1rem;
+  padding-top: max(clamp(1.25rem, 3vw, 2.25rem), var(--safe-top));
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.mwrap::-webkit-scrollbar { width: 6px; }
+.mwrap::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--border-strong) 70%, transparent);
+  border-radius: 6px;
+}
+
+.mlist {
+  max-width: var(--max-content);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  padding-bottom: var(--space-2);
+  align-items: stretch;
+}
+
+/* Welcome — editorial empty state */
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: min(62vh, 640px);
+  padding: var(--space-6) 0 var(--space-5);
+  max-width: var(--max-content);
+  margin: 0 auto;
+  width: 100%;
+  position: relative;
+  animation: welcomeIn 0.55s var(--ease-out) both;
+}
+@keyframes welcomeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.welcome-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 1.35rem;
+  padding: 5px 12px 5px 10px;
+  background: var(--accent-ghost);
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in oklch, var(--accent) 14%, transparent);
+  font-weight: 500;
+}
+.welcome-kicker::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 16%, transparent);
+}
+
+.welcome-title {
+  font-family: var(--font-serif);
+  font-size: clamp(2.55rem, 6vw, 3.85rem);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  margin-bottom: 1.1rem;
+  max-width: 14ch;
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+.welcome-title em,
+.welcome-title i {
+  font-style: italic;
+  font-weight: 500;
+  color: color-mix(in oklch, var(--text-primary) 78%, var(--accent));
+}
+
+.welcome-rule {
+  width: 40px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  margin-bottom: 1.25rem;
+  opacity: 0.9;
+}
+
+.welcome-sub {
+  font-size: 1.02rem;
+  color: var(--text-secondary);
+  max-width: 38ch;
+  line-height: var(--lh-prose);
+  margin-bottom: var(--space-6);
+  font-weight: 400;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 520px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 36px;
+  padding: 0.5rem 1.05rem;
+  background: color-mix(in oklch, var(--bg-surface) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  line-height: var(--lh-ui);
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out), border-color 0.15s, color 0.15s, transform 0.15s, box-shadow 0.15s;
+  touch-action: manipulation;
+  box-shadow: var(--shadow-xs);
+  text-align: left;
+}
+.chip:hover {
+  background: var(--accent-ghost);
+  color: var(--accent);
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px var(--accent-glow);
+}
+.chip:active { transform: translateY(0); }
+

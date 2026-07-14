@@ -1,8 +1,9 @@
 """
-ChatUI v1.0 — Minimal Starter
-The fastest way to get a production chatbot running.
+ChatUI — Minimal starter
+Three lines to a production chatbot.
 """
 import os
+
 from chatui import ChatUI
 
 app = ChatUI(
@@ -15,4 +16,5 @@ app = ChatUI(
     chips=["Hello!", "Tell me a joke", "What can you do?"],
 )
 
-app.run()
+if __name__ == "__main__":
+    app.run()
