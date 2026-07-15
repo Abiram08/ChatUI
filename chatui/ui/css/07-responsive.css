@@ -156,3 +156,10 @@
   }
   .bub { box-shadow: none !important; }
 }
+
+/* ═══ Lite mode ═══ */
+body.lite-mode .sidebar { display: none !important; }
+body.lite-mode .menu-btn { display: none !important; }
+body.lite-mode .sb-foot { display: none !important; }
+body.lite-mode .main { margin-left: 0 !important; }
+body.lite-mode .welcome-sub { display: none !important; }

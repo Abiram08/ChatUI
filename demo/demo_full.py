@@ -1,278 +1,109 @@
+"""Full demo — tools, components, widgets, events with real-ish data.
+
+Uses Open-Meteo API (free, no key) for weather.
+Uses in-memory dict for user lookup (clearly labeled as demo data).
+
+Requires: GROQ_API_KEY or OPENAI_API_KEY or ANTHROPIC_API_KEY
+Or: Ollama running on localhost:11434
+
+Run: python demo/demo_full.py
 """
-ChatUI — Full production demo
-Tools, components, widgets, session state, and event handlers.
+import httpx
+from chatui import ChatUI, button, metric, progress, table, actions
 
-Run:
-    export GROQ_API_KEY=gsk_...
-    python demo/demo_full.py
-"""
-import ast
-import operator
-import os
-import random
-from datetime import datetime
+app = ChatUI(provider="auto", title="Full Demo", subtitle="Tools + Widgets + Events")
 
-from chatui import (
-    ChatUI,
-    button,
-    metric,
-    progress,
-    status,
-    table,
-)
-
-app = ChatUI(
-    provider="groq",
-    api_key=os.getenv("GROQ_API_KEY"),
-    title="ChatUI Pro",
-    logo="\u25c6",
-    subtitle="Production-ready chatbot with tools, widgets, and live components.",
-    theme="manuscript",
-    chips=[
-        "What's the weather in Tokyo?",
-        "Search database for 'customer'",
-        "Show my dashboard",
-        "Chart sales by month",
-        "Show widgets",
-    ],
-    rate_limit=60,
-)
-
-
-# ── Safe calculator (no eval) ─────────────────────────────────────────────────
-
-_OPS = {
-    ast.Add: operator.add,
-    ast.Sub: operator.sub,
-    ast.Mult: operator.mul,
-    ast.Div: operator.truediv,
-    ast.Pow: operator.pow,
-    ast.USub: operator.neg,
-    ast.UAdd: operator.pos,
-    ast.Mod: operator.mod,
-}
-
-
-def _safe_eval(node):
-    if isinstance(node, ast.Expression):
-        return _safe_eval(node.body)
-    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-        return node.value
-    if isinstance(node, ast.Num):  # Python 3.9 compat
-        return node.n
-    if isinstance(node, ast.BinOp) and type(node.op) in _OPS:
-        return _OPS[type(node.op)](_safe_eval(node.left), _safe_eval(node.right))
-    if isinstance(node, ast.UnaryOp) and type(node.op) in _OPS:
-        return _OPS[type(node.op)](_safe_eval(node.operand))
-    raise ValueError("Only simple arithmetic is allowed")
-
-
-# ═══════════════════════════════════════════════════════════════════
-# TOOLS
-# ═══════════════════════════════════════════════════════════════════
 
 @app.tool
 def get_weather(city: str) -> dict:
-    """Get current weather for any city worldwide."""
-    conditions = ["Sunny", "Partly Cloudy", "Cloudy", "Light Rain", "Windy"]
-    return {
-        "city": city,
-        "temperature": f"{random.randint(10, 35)}\u00b0C",
-        "humidity": f"{random.randint(30, 90)}%",
-        "condition": random.choice(conditions),
-        "wind": f"{random.randint(0, 30)} km/h",
-        "updated": "Just now",
-    }
+    """Get current weather for a city using Open-Meteo (free, no API key).
 
-
-@app.tool
-def search_database(query: str, limit: int = 5) -> dict:
-    """Search the internal database for records matching the query."""
-    n = max(1, min(int(limit or 5), 10))
-    results = [
-        {
-            "id": i,
-            "title": f"Result {i}: {query} match #{i}",
-            "score": round(random.uniform(0.7, 0.99), 3),
-        }
-        for i in range(1, n + 1)
-    ]
-    return {"query": query, "total": len(results), "results": results}
-
-
-@app.tool
-def get_dashboard() -> dict:
-    """Return the executive dashboard with KPIs and charts data."""
-    return {
-        "kpis": {
-            "revenue": "$1,247,892",
-            "users": "34,291",
-            "churn": "2.1%",
-            "nps": "72",
-            "growth": "+12.4%",
-        },
-        "monthly_revenue": [
-            {"month": "Jan", "value": 890000},
-            {"month": "Feb", "value": 920000},
-            {"month": "Mar", "value": 1010000},
-            {"month": "Apr", "value": 980000},
-            {"month": "May", "value": 1150000},
-            {"month": "Jun", "value": 1247892},
-        ],
-        "top_products": [
-            {"name": "Pro Plan", "revenue": 520000, "growth": "+8%"},
-            {"name": "Enterprise", "revenue": 410000, "growth": "+15%"},
-            {"name": "Add-ons", "revenue": 180000, "growth": "+22%"},
-            {"name": "API Access", "revenue": 137892, "growth": "+5%"},
-        ],
-    }
-
-
-@app.tool
-def calculate(expression: str) -> dict:
-    """Evaluate a simple math expression (numbers and + - * / only)."""
+    Args:
+        city: City name (e.g., "Tokyo", "New York")
+    """
     try:
-        tree = ast.parse(expression, mode="eval")
-        result = _safe_eval(tree)
-        return {"expression": expression, "result": result}
+        geo = httpx.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={"name": city, "count": 1},
+            timeout=5,
+        )
+        geo.raise_for_status()
+        geo_data = geo.json()
+        if not geo_data.get("results"):
+            return {"error": f"City '{city}' not found"}
+        loc = geo_data["results"][0]
+        lat, lon = loc["latitude"], loc["longitude"]
+
+        weather = httpx.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "current": "temperature_2m,weather_code,wind_speed_10m",
+            },
+            timeout=5,
+        )
+        weather.raise_for_status()
+        w = weather.json()
+        return {
+            "city": city,
+            "temperature": f"{w['current']['temperature_2m']}C",
+            "wind_speed": f"{w['current']['wind_speed_10m']} km/h",
+            "weather_code": w["current"]["weather_code"],
+        }
     except Exception as e:
-        return {"expression": expression, "error": str(e)}
+        return {"error": f"Weather lookup failed: {e}"}
+
+
+# In-memory demo data (replace with your database in production)
+_USERS = {
+    "alice": {"role": "admin", "joined": "2024-01-15", "orders": 42},
+    "bob": {"role": "user", "joined": "2024-03-22", "orders": 7},
+    "carol": {"role": "user", "joined": "2024-06-08", "orders": 0},
+}
 
 
 @app.tool
-def show_widgets() -> tuple:
-    """Render interactive demo widgets in the chat."""
+def lookup_user(username: str) -> dict:
+    """Look up a user by username. Demo uses in-memory data.
+
+    Args:
+        username: Username to look up (e.g., "alice", "bob")
+    """
+    return _USERS.get(username, {"error": f"User '{username}' not found"})
+
+
+@app.tool
+def show_dashboard() -> tuple:
+    """Show a dashboard with metrics and a refresh button."""
     return (
         metric("Revenue", "$1.2M", delta="+12%"),
-        metric("Users", "34.2k", delta="+8%"),
-        metric("NPS", "72", delta="+3"),
+        metric("Users", "8,432", delta="+5.3%"),
+        metric("Uptime", "99.9%", delta="+0.1%"),
         progress(0.78, label="Project completion"),
-        status("Database sync complete", state="complete"),
-        table(
-            [
-                {"product": "Pro", "mrr": "$42k"},
-                {"product": "Team", "mrr": "$18k"},
-            ],
-            caption="Top plans",
+        actions(
+            button("Refresh", key="refresh", variant="primary"),
+            button("Export", key="export", variant="secondary"),
         ),
-        button("Refresh data", key="refresh"),
-        button("Dismiss", key="cancel", variant="secondary"),
-    )
-
-
-# ═══════════════════════════════════════════════════════════════════
-# COMPONENTS
-# ═══════════════════════════════════════════════════════════════════
-
-@app.component("chart")
-def render_chart(data: dict) -> str:
-    """Bar chart — pass labels, values, title."""
-    labels = data.get("labels", [])
-    values = data.get("values", [])
-    mx = max(values) if values else 1
-    bars = "".join(
-        f'<div style="display:flex;align-items:center;gap:8px;margin:6px 0">'
-        f'<span style="width:80px;text-align:right;font-size:12px;color:var(--text-secondary)">{l}</span>'
-        f'<div style="height:24px;background:var(--accent);border-radius:4px;min-width:2px;'
-        f'width:{max(int(v / mx * 240), 4)}px;transition:width 0.3s var(--ease-out)"></div>'
-        f'<span style="font-size:12px;color:var(--text-primary);font-weight:500">{v}</span></div>'
-        for l, v in zip(labels, values)
-    )
-    return (
-        f'<div>'
-        f'<b style="font-size:14px;color:var(--text-primary);font-family:var(--font-serif)">'
-        f'{data.get("title", "Chart")}</b>'
-        f'<br><br>{bars}'
-        f'</div>'
     )
 
 
 @app.component("dashboard")
-def render_dashboard(data: dict) -> str:
-    """Render a professional dashboard with KPIs and charts."""
-    kpis = data.get("kpis", {})
-    monthly = data.get("monthly_revenue", [])
-    products = data.get("top_products", [])
-
-    kpi_html = "".join(
-        f'<div style="flex:1;min-width:100px;padding:12px 16px;'
-        f'background:var(--bg-elevated);border-radius:var(--radius-sm);'
-        f'border:1px solid var(--border);">'
-        f'<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;'
-        f'color:var(--text-tertiary);margin-bottom:6px">{k}</div>'
-        f'<div style="font-size:1.25rem;font-weight:700;color:var(--text-primary);'
-        f'font-family:var(--font-serif)">{v}</div>'
-        f'</div>'
-        for k, v in kpis.items()
-    )
-
-    chart_html = render_chart({
-        "title": "Monthly Revenue",
-        "labels": [m["month"] for m in monthly],
-        "values": [m["value"] for m in monthly],
-    })
-
-    product_rows = "".join(
-        f'<tr><td style="padding:6px 12px;border:1px solid var(--border);font-weight:500">{p["name"]}</td>'
-        f'<td style="padding:6px 12px;border:1px solid var(--border);font-family:var(--font-mono);font-size:13px">${p["revenue"]:,}</td>'
-        f'<td style="padding:6px 12px;border:1px solid var(--border);font-family:var(--font-mono);'
-        f'color:{"var(--success)" if "+" in p["growth"] else "var(--error)"}">{p["growth"]}</td></tr>'
-        for p in products
-    )
-
-    return f"""
-    <div>
-      <h3 style="font-family:var(--font-serif);margin:0 0 1rem;font-size:1.3rem">Executive Dashboard</h3>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:1.5rem">{kpi_html}</div>
-      {chart_html}
-      <br>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:0.5rem">
-        <thead><tr style="background:var(--bg-elevated)">
-          <th style="padding:8px 12px;border:1px solid var(--border);text-align:left">Product</th>
-          <th style="padding:8px 12px;border:1px solid var(--border);text-align:left">Revenue</th>
-          <th style="padding:8px 12px;border:1px solid var(--border);text-align:left">Growth</th>
-        </tr></thead>
-        <tbody>{product_rows}</tbody>
-      </table>
-    </div>
-    """
-
-
-# ═══════════════════════════════════════════════════════════════════
-# CONTEXT + EVENTS
-# ═══════════════════════════════════════════════════════════════════
-
-@app.context
-def current_state():
-    """Current session data and timestamp."""
-    return {
-        "session_id": app.session.id,
-        "server_time": datetime.now().isoformat(),
-        "click_count": app.session.get("click_count", 0),
-        "last_button": app.session.get("last_button"),
-    }
+def dashboard(data: dict) -> str:
+    """Render a custom dashboard component."""
+    title = data.get("title", "Dashboard")
+    return f"<div class='custom-dashboard'><h3>{title}</h3><p>Custom HTML component</p></div>"
 
 
 @app.on("button_click")
 def handle_button(data: dict):
-    """Track button clicks in session state."""
+    """Handle any button click."""
     key = data.get("key", "")
-    app.session["last_button"] = key
-    app.session["click_count"] = app.session.get("click_count", 0) + 1
-    return {
-        "clicked": key,
-        "total_clicks": app.session["click_count"],
-    }
+    if key == "refresh":
+        return metric("Status", "Refreshed!", delta="just now")
+    elif key == "export":
+        return "Export started! Check your downloads."
+    return f"Button clicked: {key}"
 
 
-@app.on("refresh")
-def on_refresh(data: dict):
-    """Handle the Refresh widget key specifically."""
-    return (
-        status("Refreshed", state="complete"),
-        metric("Clicks", app.session.get("click_count", 0)),
-    )
-
-
-if __name__ == "__main__":
-    app.run()
+app.run()

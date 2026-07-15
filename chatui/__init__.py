@@ -1,28 +1,55 @@
 """
-chatui — The fastest way to ship a production AI chatbot.
+chatui - The fastest way to ship a production AI chatbot.
 
-    from chatui import ChatUI, button, metric
+    # One-liner (auto-detects provider from environment)
+    from chatui import chat
+    chat()
+
+    # With tools (plain functions, no decorators)
+    def get_weather(city: str) -> dict:
+        '''Current weather for a city.'''
+        return {"city": city, "temp": "22C"}
+
+    chat(tools=[get_weather], title="Weather Bot")
+
+    # Custom reply (no LLM key needed)
+    def echo(message: str, session) -> str:
+        return f"You said: {message}"
+
+    chat(reply=echo, title="Echo Bot")
+
+Advanced (decorators)::
 
     app = ChatUI(provider="groq")
 
     @app.tool
-    def hello(name: str) -> dict:
-        \"\"\"Greet someone.\"\"\"
-        return {"message": f"Hello, {name}!"}
+    def get_weather(city: str) -> dict:
+        '''Current weather for a city.'''
+        return {"city": city, "temp": "22C"}
+
+    @app.component("chart")
+    def chart(data: dict) -> str:
+        return f"<b>{data.get('title', 'Chart')}</b>"
 
     app.run()
 """
-from .server import VERSION, ChatUI
+from .app import ChatUI
+from ._constants import VERSION
 from .session import SessionState
+from .api import chat
 from .widgets import (
+    Widget,
     button,
     checkbox,
+    choice,
     columns,
+    confirm,
     divider,
     end_columns,
     end_expander,
     expander,
     file_uploader,
+    form,
     html,
     image,
     markdown,
@@ -32,11 +59,14 @@ from .widgets import (
     selectbox,
     slider,
     spinner,
+    stack,
     status,
     table,
     text_input,
     toast,
-    Widget,
+    actions,
+    row,
+    card,
 )
 
 __all__ = [
@@ -44,6 +74,7 @@ __all__ = [
     "SessionState",
     "VERSION",
     "Widget",
+    "chat",
     "button",
     "text_input",
     "selectbox",
@@ -65,9 +96,51 @@ __all__ = [
     "toast",
     "file_uploader",
     "spinner",
+    "actions",
+    "row",
+    "stack",
+    "card",
+    "choice",
+    "form",
+    "confirm",
 ]
 
 __version__ = VERSION
+
+
+def chat(
+    *,
+    tools=None,
+    components=None,
+    on=None,
+    reply=None,
+    title="ChatUI",
+    theme="manuscript",
+    provider="auto",
+    model=None,
+    host="0.0.0.0",
+    port=8000,
+    **kwargs,
+):
+    """Start a ChatUI server with minimal ceremony.
+
+    Auto-detects provider from environment variables when provider="auto".
+    """
+    from .api import chat as _chat
+
+    return _chat(
+        tools=tools,
+        components=components,
+        on=on,
+        reply=reply,
+        title=title,
+        theme=theme,
+        provider=provider,
+        model=model,
+        host=host,
+        port=port,
+        **kwargs,
+    )
 
 
 def main():
@@ -82,12 +155,12 @@ def main():
 
     parser = argparse.ArgumentParser(
         prog="chatui",
-        description="ChatUI — production-ready AI chatbot interface",
+        description="ChatUI - production-ready AI chatbot interface",
     )
     parser.add_argument(
         "--provider",
-        default="anthropic",
-        choices=["anthropic", "ollama", "groq", "openai"],
+        default="auto",
+        choices=["auto", "anthropic", "ollama", "groq", "openai"],
     )
     parser.add_argument("--model", default=None, help="Override the default model")
     parser.add_argument("--port", type=int, default=8000)
@@ -105,23 +178,22 @@ def main():
     parser.add_argument("--version", action="version", version=f"chatui {__version__}")
     args = parser.parse_args()
 
-    env_map = {
-        "anthropic": "ANTHROPIC_API_KEY",
-        "groq": "GROQ_API_KEY",
-        "openai": "OPENAI_API_KEY",
-        "ollama": "",
-    }
-    env_name = env_map.get(args.provider, "")
-    key = os.getenv(env_name) if env_name else None
+    # Auto-detect provider
+    if args.provider == "auto":
+        try:
+            from .providers.detect import detect_provider_from_env
 
-    if not key and args.provider != "ollama":
-        print(f"Error: {env_name} is not set.")
-        print("Set the environment variable or use ChatUI(api_key=...) in Python.")
-        sys.exit(1)
+            provider, default_model = detect_provider_from_env()
+            if args.model is None:
+                args.model = default_model
+        except Exception as e:
+            print(str(e))
+            sys.exit(1)
+    else:
+        provider = args.provider
 
     app = ChatUI(
-        provider=args.provider,
-        api_key=key,
+        provider=provider,
         model=args.model,
         host=args.host,
         port=args.port,

@@ -53,9 +53,18 @@ FORBIDDEN_COLORS = {
 
 
 class TestThemeCatalog:
-    def test_nine_themes(self):
-        assert len(THEMES) == 9
-        assert len(THEME_NAMES) == 9
+    def test_theme_count(self):
+        # 11 Zed-inspired + 9 legacy = 20 themes
+        assert len(THEMES) == 20
+        assert len(THEME_NAMES) == 20
+
+    def test_zed_themes_present(self):
+        for name in ("one_dark", "zed_dark", "ayu_light", "rose_pine", "catppuccin_mocha"):
+            assert name in THEMES, f"{name} missing"
+
+    def test_legacy_themes_present(self):
+        for name in ("manuscript", "ink", "obsidian", "midnight"):
+            assert name in THEMES, f"{name} missing"
 
     def test_default_exists(self):
         assert DEFAULT_THEME in THEMES

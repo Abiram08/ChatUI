@@ -5,7 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from chatui import ChatUI, button, metric
-from chatui.server import _RateLimiter, _html_esc
+from chatui._rate_limiter import _RateLimiter
+from chatui._constants import _html_esc
 
 
 @pytest.fixture

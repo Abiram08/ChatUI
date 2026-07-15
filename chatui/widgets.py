@@ -35,7 +35,8 @@ class Widget:
 
     def __init__(self, wtype: str, **props: Any) -> None:
         self._type = wtype
-        self._id = f"w_{wtype}_{id(self):x}"
+        widget_id = props.pop("id", None)
+        self._id = widget_id or f"w_{wtype}_{id(self):x}"
         self._props = props
 
     @property
@@ -336,6 +337,98 @@ def widget_message(*widgets: Widget) -> dict:
     return {"widgets": widget_payloads(widgets)}
 
 
+# ── Layout helpers (explicit, no magic grouping required) ────────────────────
+
+import uuid
+
+
+def _gen_id(prefix: str = "w") -> str:
+    """Generate a stable, human-friendly widget ID."""
+    return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+
+def _check_unique_keys(widgets: list[Widget]) -> None:
+    """Raise ValueError if any widgets have duplicate keys."""
+    keys = [w.props.get("key") for w in widgets if w.props.get("key")]
+    if keys and len(keys) != len(set(keys)):
+        dupes = [k for k in keys if keys.count(k) > 1]
+        raise ValueError(f"Duplicate widget keys: {list(set(dupes))}")
+
+
+def actions(*buttons: Widget) -> Widget:
+    """Explicit action row. Buttons render horizontally.
+
+    Prefer this over relying on auto-grouping of consecutive buttons.
+    """
+    _check_unique_keys(list(buttons))
+    return Widget("actions", id=_gen_id("actions"), children=widget_payloads(buttons))
+
+
+def row(*widgets: Widget) -> Widget:
+    """Horizontal group (metrics, etc.). CSS grid with equal fr units."""
+    _check_unique_keys(list(widgets))
+    return Widget("row", id=_gen_id("row"), children=widget_payloads(widgets))
+
+
+def stack(*widgets: Widget) -> Widget:
+    """Vertical stack with consistent gaps."""
+    _check_unique_keys(list(widgets))
+    return Widget("stack", id=_gen_id("stack"), children=widget_payloads(widgets))
+
+
+def card(title: str, *children: Widget) -> Widget:
+    """Single surface for mixed content.
+
+    Avoids nested "card inside card" (AGENTS.md anti-pattern).
+    """
+    _check_unique_keys(list(children))
+    return Widget(
+        "card",
+        id=_gen_id("card"),
+        title=title,
+        children=widget_payloads(children),
+    )
+
+
+# ── Chat-native widget patterns ──────────────────────────────────────────────
+
+
+def choice(label: str, options: list[str], key: str) -> Widget:
+    """Clickable option chips for chat flows.
+
+    Fires ``choice_select`` with ``data.value`` = selected option.
+    """
+    return Widget(
+        "choice",
+        id=_gen_id("choice"),
+        label=label,
+        options=[str(o) for o in options],
+        key=key,
+    )
+
+
+def form(*fields: Widget, submit_key: str) -> Widget:
+    """Multi-field form. Returns dict of field values on submit.
+
+    Fires ``form_submit`` with ``data.values`` = {field_key: value, ...}.
+    """
+    _check_unique_keys(list(fields))
+    return Widget(
+        "form",
+        id=_gen_id("form"),
+        fields=widget_payloads(fields),
+        submit_key=submit_key,
+    )
+
+
+def confirm(message: str, yes_key: str, no_key: str) -> Widget:
+    """Confirmation dialog as two buttons (actions preset)."""
+    return actions(
+        button(message, key=yes_key, variant="primary"),
+        button("Cancel", key=no_key, variant="secondary"),
+    )
+
+
 __all__ = [
     "Widget",
     "button",
@@ -363,4 +456,11 @@ __all__ = [
     "strip_widgets",
     "widget_payloads",
     "widget_message",
+    "actions",
+    "row",
+    "stack",
+    "card",
+    "choice",
+    "form",
+    "confirm",
 ]
