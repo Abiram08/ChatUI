@@ -1,37 +1,21 @@
 """
-chatui - The fastest way to ship a production AI chatbot.
+chatui — simple Python UI for AI chatbots.
 
-    # One-liner (auto-detects provider from environment)
     from chatui import chat
     chat()
 
-    # With tools (plain functions, no decorators)
+    # Tools (plain functions)
     def get_weather(city: str) -> dict:
         '''Current weather for a city.'''
         return {"city": city, "temp": "22C"}
 
     chat(tools=[get_weather], title="Weather Bot")
 
-    # Custom reply (no LLM key needed)
+    # No LLM key
     def echo(message: str, session) -> str:
         return f"You said: {message}"
 
     chat(reply=echo, title="Echo Bot")
-
-Advanced (decorators)::
-
-    app = ChatUI(provider="groq")
-
-    @app.tool
-    def get_weather(city: str) -> dict:
-        '''Current weather for a city.'''
-        return {"city": city, "temp": "22C"}
-
-    @app.component("chart")
-    def chart(data: dict) -> str:
-        return f"<b>{data.get('title', 'Chart')}</b>"
-
-    app.run()
 """
 from .app import ChatUI
 from ._constants import VERSION

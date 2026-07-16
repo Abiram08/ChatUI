@@ -8,27 +8,43 @@ __pycache__/
 dist/
 build/
 .eggs/
+*.whl
 
 # Virtual environments
 .venv/
 venv/
 env/
+.envrc
 
-# API Keys — never commit these
+# API keys — never commit these
 .env
-*.env
+.env.*
+!.env.example
+*.pem
 
-# IDE
+# IDE / editors
 .vscode/
 .idea/
 *.swp
 *.swo
+*.code-workspace
 
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
 
-# Test cache
+# Test / coverage / type checkers
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+coverage.xml
+
+# Local notes / agent scratch
+*.local.md
+.cache/

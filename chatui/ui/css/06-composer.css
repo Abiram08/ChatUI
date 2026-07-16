@@ -38,6 +38,32 @@
 .toast-icon.warning { color: var(--warning); }
 .toast-icon.info { color: var(--accent); }
 
+/* Jump to latest (when user scrolled up) */
+.jump-latest {
+  position: absolute;
+  left: 50%;
+  bottom: calc(5.5rem + var(--safe-bottom));
+  transform: translateX(-50%);
+  z-index: 4;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+}
+.jump-latest:hover {
+  background: var(--accent-ghost);
+  color: var(--accent);
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+}
+.jump-latest[hidden] { display: none !important; }
+
 /* Composer */
 .ia {
   padding: 0.65rem clamp(1rem, 3vw, 1.75rem) calc(1.05rem + var(--safe-bottom));
@@ -147,11 +173,17 @@
 }
 
 .ih {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
   font-size: 11px;
   color: var(--text-tertiary);
   text-align: center;
   margin-top: 0.55rem;
   letter-spacing: 0.01em;
+  min-height: 1.25em;
 }
 .ih kbd {
   font-family: var(--font-mono);
@@ -162,6 +194,13 @@
   background: var(--bg-elevated);
   color: var(--text-secondary);
 }
+.char-hint {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--warning);
+  font-variant-numeric: tabular-nums;
+}
+.char-hint.over { color: var(--error); font-weight: 600; }
 
 /* Connection banner */
 .conn-banner {
@@ -183,6 +222,18 @@
 .conn-banner.show {
   display: block;
   animation: mIn 0.2s var(--ease-out);
+}
+.conn-banner.failed {
+  background: color-mix(in oklch, var(--warning) 88%, var(--bg-base));
+  color: var(--bg-surface);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.conn-banner.failed:hover,
+.conn-banner.failed:focus-visible {
+  filter: brightness(1.05);
+  outline: none;
 }
 
 /* Menu button */

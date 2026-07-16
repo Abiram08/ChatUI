@@ -379,7 +379,7 @@ def stack(*widgets: Widget) -> Widget:
 def card(title: str, *children: Widget) -> Widget:
     """Single surface for mixed content.
 
-    Avoids nested "card inside card" (AGENTS.md anti-pattern).
+    Avoids nested "card inside card" UI.
     """
     _check_unique_keys(list(children))
     return Widget(

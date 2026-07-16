@@ -9,13 +9,23 @@
 marked.setOptions({ breaks: true, gfm: true });
 
 const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const scr = () => { const c = document.getElementById('mwrap'); c.scrollTop = c.scrollHeight; };
+const scr = () => {
+  const c = document.getElementById('mwrap');
+  c.scrollTop = c.scrollHeight;
+  S.ascroll = true;
+  updateJumpBtn();
+};
 const mlist = () => document.getElementById('mlist');
 const addEl = h => {
   const t = document.createElement('template');
   t.innerHTML = h.trim();
   mlist().appendChild(t.content);
 };
+function updateJumpBtn() {
+  const btn = document.getElementById('jumpLatest');
+  if (!btn) return;
+  btn.hidden = !!S.ascroll;
+}
 
 /* ── State ─────────────────────────────────────────────────── */
 const S = {
@@ -26,46 +36,125 @@ const S = {
   msgHistory: [],
   aid: null, ascroll: true,
   session: {},
+  allowSystemPrompt: false,
+  maxMessageChars: 12000,
+  maxRetries: 10,
+  reconnectTimer: null,
+  providerLabel: '',
 };
 
 /* ── WebSocket ─────────────────────────────────────────────── */
-function connect() {
+function connect(manual) {
   if (S.ws && (S.ws.readyState === 0 || S.ws.readyState === 1)) return;
-  S.ws = new WebSocket(WS_URL);
-  S.ws.onopen = () => { S.connected = true; S.retries = 0; setStatus(true); };
+  if (manual) {
+    S.retries = 0;
+    if (S.reconnectTimer) { clearTimeout(S.reconnectTimer); S.reconnectTimer = null; }
+  }
+  try {
+    S.ws = new WebSocket(WS_URL);
+  } catch (err) {
+    S.connected = false;
+    setStatus(false, 'failed');
+    return;
+  }
+  S.ws.onopen = () => {
+    S.connected = true;
+    S.retries = 0;
+    setStatus(true);
+    // Re-sync active conversation after reconnect so the model keeps context.
+    if (S.msgHistory.length) syncServerHistory(S.msgHistory);
+  };
   S.ws.onmessage = e => { try { handle(JSON.parse(e.data)); } catch(err) { console.error('Parse error:', err); } };
   S.ws.onclose = (ev) => {
     S.connected = false;
-    setStatus(false);
     if (ev && ev.code === 4001) {
+      setStatus(false, 'auth');
       document.getElementById('st').textContent = 'Unauthorized';
       return;
     }
-    if (S.retries < 10) {
+    if (S.retries < S.maxRetries) {
       S.retries++;
-      setTimeout(connect, Math.min(1000 * Math.pow(1.5, S.retries), 15000));
+      setStatus(false, 'retrying');
+      const delay = Math.min(1000 * Math.pow(1.5, S.retries), 15000);
+      S.reconnectTimer = setTimeout(connect, delay);
+    } else {
+      setStatus(false, 'failed');
     }
   };
-  S.ws.onerror = () => { S.connected = false; setStatus(false); };
+  S.ws.onerror = () => { S.connected = false; setStatus(false, S.retries >= S.maxRetries ? 'failed' : 'retrying'); };
 }
 
-function ws(o) { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(o)); }
+function ws(o) {
+  if (S.ws && S.ws.readyState === 1) {
+    S.ws.send(JSON.stringify(o));
+    return true;
+  }
+  return false;
+}
 
-function setStatus(on) {
+function setStatus(on, mode) {
   const badge = document.getElementById('modelBadge');
   const banner = document.getElementById('connBanner');
+  const st = document.getElementById('st');
   badge.classList.toggle('off', !on);
-  document.getElementById('st').textContent = on ? 'Connected' : 'Reconnecting...';
-  banner.classList.toggle('show', !on);
+  if (on) {
+    st.textContent = S.providerLabel || 'Connected';
+    banner.classList.remove('show', 'failed');
+    banner.textContent = 'Connection lost — reconnecting automatically…';
+    banner.removeAttribute('role');
+    banner.onclick = null;
+    banner.onkeydown = null;
+    banner.tabIndex = -1;
+    return;
+  }
+  banner.classList.add('show');
+  if (mode === 'auth') {
+    banner.classList.add('failed');
+    banner.textContent = 'Unauthorized — check your access token and reload.';
+    st.textContent = 'Unauthorized';
+  } else if (mode === 'failed') {
+    banner.classList.add('failed');
+    banner.textContent = 'Connection lost — click here to reconnect';
+    banner.setAttribute('role', 'button');
+    banner.tabIndex = 0;
+    banner.onclick = () => connect(true);
+    banner.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); connect(true); } };
+    st.textContent = 'Offline';
+  } else {
+    banner.classList.remove('failed');
+    banner.textContent = 'Connection lost — reconnecting automatically…';
+    st.textContent = 'Reconnecting…';
+  }
+}
+
+/** Push local message history to the server so continue/regenerate work. */
+function syncServerHistory(messages) {
+  const msgs = (messages || []).filter(m =>
+    m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim()
+  ).map(m => ({ role: m.role, content: m.content }));
+  if (!msgs.length) {
+    ws({ action: 'clear' });
+    return;
+  }
+  ws({ action: 'set_history', messages: msgs });
 }
 
 /* ── Message handler ───────────────────────────────────────── */
 function handle(d) {
   switch (d.type) {
     case 'config':
-      document.getElementById('st').textContent = `${d.provider} \u00b7 ${d.model}`;
+      S.providerLabel = `${d.provider} \u00b7 ${d.model}`;
+      document.getElementById('st').textContent = S.providerLabel;
       if (d.session) S.session._id = d.session;
       if (d.lite) { document.body.classList.add('lite-mode'); }
+      if (typeof d.allow_system_prompt === 'boolean') {
+        S.allowSystemPrompt = d.allow_system_prompt;
+        applySystemPromptVisibility();
+      }
+      if (d.max_message_chars) S.maxMessageChars = d.max_message_chars;
+      break;
+    case 'history_set':
+      // Server acknowledged restored history — no UI change needed.
       break;
     case 'session_state':
     case 'session_updated':
@@ -96,32 +185,38 @@ function handle(d) {
       setInput(true); focusI(); saveConv();
       break;
     case 'stopped':
-      rmThink(); finalise(S.raw, null);
+      rmThink();
+      if (S.raw) finalise(S.raw, null);
+      else if (S.streamEl) {
+        const msgEl = S.streamEl.closest('.msg.ai');
+        if (msgEl) msgEl.remove();
+      }
       S.streaming = false; S.streamEl = null; S.raw = ''; S.tbEl = null;
       S.currentAiMsg = null;
-      setInput(true); focusI();
+      setInput(true); focusI(); saveConv();
       break;
     case 'error':
       if (S.thinkId) {
         const el = document.getElementById(S.thinkId);
         if (el) {
           const b = el.querySelector('.bub');
-          b.style.cssText += ';background:color-mix(in oklch, var(--error) 8%, var(--bg-surface));border-color:color-mix(in oklch, var(--error) 30%, var(--border));';
-          b.innerHTML = `<div class="prose" style="color:var(--error)" role="alert">\u26a0\ufe0f ${esc(d.content)}</div>`;
+          b.classList.add('bub-error');
+          b.innerHTML = `<div class="prose" role="alert">${esc(d.content)}</div>`;
         }
         S.thinkId = null;
       } else if (S.streamEl) {
-        S.streamEl.innerHTML = `<span style="color:var(--error)" role="alert">\u26a0\ufe0f ${esc(d.content)}</span>`;
+        S.streamEl.innerHTML = `<span style="color:var(--error)" role="alert">${esc(d.content)}</span>`;
         S.streamEl = null;
       } else {
         showErr(d.content);
       }
       S.currentAiMsg = null;
-      S.streaming = false; setInput(true);
+      S.streaming = false; setInput(true); focusI();
       break;
     case 'cleared':
+      // Server history cleared. Local list is managed by newChat/loadConv.
+      break;
     case 'system_updated':
-      S.msgHistory = [];
       break;
     case 'tools_ready':
       showToolsPanel(d.tools);
@@ -270,14 +365,45 @@ function copyMsg(tid) {
   if (!el) return;
   const prose = el.querySelector('.prose');
   if (!prose) return;
-  navigator.clipboard.writeText(prose.innerText).then(() => {
-    const btn = el.querySelector('.ma-btn:first-child');
+  const text = prose.innerText;
+  const done = () => {
+    const btn = el.querySelector('.ma-btn');
     if (btn) { btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 1800); }
-  }).catch(() => {});
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+
+function fallbackCopy(text, done) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (done) done();
+  } catch (_) {
+    showToast('Could not copy to clipboard', 'warning');
+  }
 }
 
 function regenerate() {
-  if (S.streaming || !S.connected) return;
+  if (S.streaming) {
+    showToast('Wait for the current response to finish', 'warning');
+    return;
+  }
+  if (!S.connected) {
+    showToast('Not connected — reconnecting…', 'warning');
+    connect(true);
+    return;
+  }
   const list = mlist();
   let child = list.lastElementChild;
   while (child) {
@@ -287,26 +413,49 @@ function regenerate() {
     child = prev;
   }
   if (S.msgHistory.length && S.msgHistory[S.msgHistory.length - 1].role === 'assistant') S.msgHistory.pop();
-  ws({ action: 'regenerate' });
+  // Ensure server history matches before regenerate (e.g. after loading a past chat).
+  syncServerHistory(S.msgHistory);
+  if (!ws({ action: 'regenerate' })) {
+    showToast('Not connected — try again in a moment', 'warning');
+  }
 }
 
 /* ── Input ─────────────────────────────────────────────────── */
 function sendMsg() {
   const inp = document.getElementById('ci');
   const t = inp.value.trim();
-  if (!t || S.streaming || !S.connected) return;
-  if (t.length > 12000) {
-    showToast('Message too long (max 12,000 characters)', 'warning');
+  if (!t || S.streaming) return;
+  if (!S.connected) {
+    showToast('Not connected — reconnecting…', 'warning');
+    connect(true);
+    return;
+  }
+  const maxChars = S.maxMessageChars || 12000;
+  if (t.length > maxChars) {
+    showToast(`Message too long (max ${maxChars.toLocaleString()} characters)`, 'warning');
     return;
   }
   document.getElementById('welcome').style.display = 'none';
   appendUser(t);
   S.msgHistory.push({ role: 'user', content: t });
   inp.value = ''; inp.style.height = 'auto';
-  ws({ action: 'chat', message: t });
+  updateCharHint();
+  if (!ws({ action: 'chat', message: t })) {
+    showToast('Message could not be sent — connection lost', 'error');
+    S.streaming = false;
+    setInput(true);
+  }
 }
 
-function chip(t) { document.getElementById('ci').value = t; sendMsg(); }
+function chip(t) {
+  if (S.streaming) {
+    showToast('Wait for the current response to finish', 'warning');
+    return;
+  }
+  document.getElementById('ci').value = t;
+  updateCharHint();
+  sendMsg();
+}
 
 function setInput(on) {
   const i = document.getElementById('ci');
@@ -315,11 +464,41 @@ function setInput(on) {
   i.disabled = !on;
   b.disabled = !on;
   s.classList.toggle('vis', !on);
+  b.setAttribute('aria-disabled', String(!on));
 }
 
-function focusI() { document.getElementById('ci').focus(); }
+function focusI() {
+  const i = document.getElementById('ci');
+  if (i && !i.disabled) i.focus();
+}
 
-function stopGen() { ws({ action: 'stop' }); S.streaming = false; setInput(true); }
+function stopGen() {
+  ws({ action: 'stop' });
+  // Server will emit `stopped`; keep UI responsive if it never arrives.
+  if (S.streaming) {
+    setTimeout(() => {
+      if (S.streaming) {
+        S.streaming = false;
+        setInput(true);
+        focusI();
+      }
+    }, 2500);
+  }
+}
+
+function updateCharHint() {
+  const hint = document.getElementById('charHint');
+  if (!hint) return;
+  const len = (document.getElementById('ci').value || '').length;
+  const max = S.maxMessageChars || 12000;
+  if (len > max * 0.85) {
+    hint.hidden = false;
+    hint.textContent = `${len.toLocaleString()} / ${max.toLocaleString()}`;
+    hint.classList.toggle('over', len > max);
+  } else {
+    hint.hidden = true;
+  }
+}
 
 /* ── Conversations ─────────────────────────────────────────── */
 function saveConv() {
@@ -352,36 +531,52 @@ function renderConvs() {
   ).join('');
 }
 
+function renderHistoryMessages(msgs) {
+  mlist().innerHTML = '';
+  (msgs || []).forEach(m => {
+    if (m.role === 'user') appendUser(m.content || '');
+    else if (m.role === 'assistant') {
+      const tid = 'hist' + Math.random().toString(36).slice(2, 9);
+      addEl(`<div class="msg ai" id="${tid}"><div class="av ai" aria-label="AI"><span aria-hidden="true">\u25c6</span></div><div class="mb"><div class="bub"><div class="prose"></div></div><div class="mmeta"><span class="mt"></span></div>
+        <div class="msg-actions">
+          <button class="ma-btn" onclick="copyMsg('${tid}')" aria-label="Copy message">Copy</button>
+        </div>
+      </div></div>`);
+      const prose = document.getElementById(tid).querySelector('.prose');
+      prose.innerHTML = renderMarkdown(m.content || '');
+      prose.querySelectorAll('pre code').forEach(b => { hljs.highlightElement(b); addCodeHeader(b); });
+      prose.querySelectorAll('a').forEach(a => { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer'); });
+    }
+  });
+}
+
 function loadConv(id) {
-  if (S.streaming) return;
+  if (S.streaming) {
+    showToast('Wait for the current response to finish', 'warning');
+    return;
+  }
   let msgs = [];
   try { msgs = JSON.parse(localStorage.getItem('cui_msgs_' + id) || '[]'); } catch (_) { msgs = []; }
   S.aid = id;
   S.msgHistory = Array.isArray(msgs) ? msgs : [];
-  mlist().innerHTML = '';
   document.getElementById('welcome').style.display = S.msgHistory.length ? 'none' : 'flex';
-  S.msgHistory.forEach(m => {
-    if (m.role === 'user') appendUser(m.content || '');
-    else if (m.role === 'assistant') {
-      const tid = 'hist' + Math.random().toString(36).slice(2, 9);
-      addEl(`<div class="msg ai" id="${tid}"><div class="av ai" aria-label="AI"><span aria-hidden="true">\u25c6</span></div><div class="mb"><div class="bub"><div class="prose"></div></div><div class="mmeta"><span class="mt"></span></div></div></div>`);
-      const prose = document.getElementById(tid).querySelector('.prose');
-      prose.innerHTML = renderMarkdown(m.content || '');
-      prose.querySelectorAll('pre code').forEach(b => { hljs.highlightElement(b); addCodeHeader(b); });
-    }
-  });
-  ws({ action: 'clear' });
+  renderHistoryMessages(S.msgHistory);
+  // Restore server-side context so the model can continue this conversation.
+  syncServerHistory(S.msgHistory);
   renderConvs();
   if (S.ascroll) scr();
   focusI();
+  toggleSidebar(false);
 }
 
 function deleteConv(id) {
   S.convs = S.convs.filter(c => c.id !== id);
-  localStorage.setItem('cui3', JSON.stringify(S.convs));
-  localStorage.removeItem('cui_msgs_' + id);
+  try {
+    localStorage.setItem('cui3', JSON.stringify(S.convs));
+    localStorage.removeItem('cui_msgs_' + id);
+  } catch (_) {}
   if (S.aid === id) newChat();
-  renderConvs();
+  else renderConvs();
 }
 
 function newChat() {
@@ -389,7 +584,10 @@ function newChat() {
   S.aid = null; S.msgHistory = [];
   mlist().innerHTML = '';
   document.getElementById('welcome').style.display = 'flex';
-  ws({ action: 'clear' }); renderConvs(); focusI();
+  syncServerHistory([]);
+  renderConvs();
+  focusI();
+  toggleSidebar(false);
 }
 
 /* ── Themes & settings ─────────────────────────────────────── */
@@ -488,13 +686,22 @@ function toggleSys() {
   }
 }
 
+function applySystemPromptVisibility() {
+  const block = document.getElementById('sysPromptBlock');
+  if (!block) return;
+  block.hidden = !S.allowSystemPrompt;
+}
+
 function saveSystem() {
-  const p = document.getElementById('sysTa').value.trim();
-  if (!p) {
-    showToast('Enter a system prompt before applying', 'warning');
+  if (!S.allowSystemPrompt) {
+    showToast('System prompt editing is disabled for this app', 'warning');
     return;
   }
-  ws({ action: 'update_system', prompt: p });
+  const p = document.getElementById('sysTa').value.trim();
+  if (!ws({ action: 'update_system', prompt: p })) {
+    showToast('Not connected', 'error');
+    return;
+  }
   const panel = document.getElementById('sysPanel');
   const btn = document.getElementById('sysBtn');
   panel.classList.remove('open');
@@ -503,13 +710,19 @@ function saveSystem() {
     btn.setAttribute('aria-expanded', 'false');
     btn.setAttribute('aria-label', 'Open settings');
   }
-  showToast('System prompt applied \u2014 starting a fresh chat', 'success');
+  showToast(
+    p ? 'System prompt applied \u2014 starting a fresh chat' : 'System prompt reset to default \u2014 starting a fresh chat',
+    'success'
+  );
   newChat();
 }
 
 /* ── Export / import ───────────────────────────────────────── */
 function exportConv() {
-  if (!S.msgHistory.length) return;
+  if (!S.msgHistory.length) {
+    showToast('Nothing to export yet', 'info');
+    return;
+  }
   const md = `# ChatUI Export\n${new Date().toLocaleString()}\n\n---\n\n` +
     S.msgHistory.map(m => `## ${m.role === 'user' ? 'You' : 'AI'}\n\n${m.content}`).join('\n\n---\n\n');
   const a = document.createElement('a');
@@ -517,6 +730,7 @@ function exportConv() {
   a.download = `chatui-${Date.now()}.md`;
   a.click();
   URL.revokeObjectURL(a.href);
+  showToast('Conversation exported', 'success');
 }
 
 function importConv() {
@@ -538,21 +752,15 @@ function importConv() {
         showToast('Could not parse conversation from file', 'warning');
         return;
       }
-      newChat();
+      if (S.streaming) stopGen();
+      S.aid = null;
       S.msgHistory = msgs;
       document.getElementById('welcome').style.display = 'none';
-      mlist().innerHTML = '';
-      msgs.forEach(m => {
-        if (m.role === 'user') appendUser(m.content);
-        else {
-          const tid = 'imp' + Math.random().toString(36).slice(2, 9);
-          addEl(`<div class="msg ai" id="${tid}"><div class="av ai" aria-label="AI"><span aria-hidden="true">\u25c6</span></div><div class="mb"><div class="bub"><div class="prose"></div></div></div></div>`);
-          const prose = document.getElementById(tid).querySelector('.prose');
-          prose.innerHTML = renderMarkdown(m.content || '');
-        }
-      });
+      renderHistoryMessages(msgs);
+      syncServerHistory(msgs);
       saveConv();
       showToast('Imported ' + msgs.length + ' messages', 'success');
+      focusI();
     };
     reader.readAsText(file);
   };
@@ -619,7 +827,9 @@ document.addEventListener('DOMContentLoaded', () => {
   inp.addEventListener('input', e => {
     e.target.style.height = 'auto';
     e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px';
+    updateCharHint();
   });
+  applySystemPromptVisibility();
 
   document.getElementById('sb2').addEventListener('click', sendMsg);
   document.getElementById('stb').addEventListener('click', stopGen);
@@ -633,7 +843,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('mwrap').addEventListener('scroll', () => {
     const c = document.getElementById('mwrap');
     S.ascroll = (c.scrollHeight - c.scrollTop - c.clientHeight < 80);
+    updateJumpBtn();
   });
+  const jumpBtn = document.getElementById('jumpLatest');
+  if (jumpBtn) jumpBtn.addEventListener('click', () => scr());
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {

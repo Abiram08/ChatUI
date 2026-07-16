@@ -53,6 +53,9 @@ async def handle_websocket(app, websocket: WebSocket) -> None:
                 "version": VERSION,
                 "protocol_version": 1,
                 "lite": app.lite,
+                "allow_system_prompt": app.allow_client_system_prompt,
+                "history_turns": app.history_turns,
+                "max_message_chars": MAX_MESSAGE_CHARS,
             }
         )
 
@@ -97,6 +100,47 @@ async def handle_websocket(app, websocket: WebSocket) -> None:
                 await send({"type": "cleared"})
                 continue
 
+            if action == "set_history":
+                # Restore client-side conversation so continue/regenerate have context.
+                if conn.generating:
+                    await send(
+                        {
+                            "type": "error",
+                            "content": "Cannot load history while generating.",
+                        }
+                    )
+                    continue
+                messages = payload.get("messages")
+                if not isinstance(messages, list):
+                    await send(
+                        {"type": "error", "content": "Invalid history payload."}
+                    )
+                    continue
+                max_msgs = max(2, int(app.history_turns or 40) * 2 + 4)
+                cleaned: list[dict] = []
+                for m in messages[:max_msgs]:
+                    if not isinstance(m, dict):
+                        continue
+                    role = m.get("role")
+                    content = m.get("content")
+                    if role not in ("user", "assistant"):
+                        continue
+                    if not isinstance(content, str):
+                        continue
+                    content = content.strip()
+                    if not content:
+                        continue
+                    cleaned.append(
+                        {
+                            "role": role,
+                            "content": content[:MAX_MESSAGE_CHARS],
+                        }
+                    )
+                conn.history = cleaned
+                conn.reset_stop()
+                await send({"type": "history_set", "count": len(cleaned)})
+                continue
+
             if action == "stop":
                 conn.request_stop()
                 continue
@@ -107,10 +151,13 @@ async def handle_websocket(app, websocket: WebSocket) -> None:
                         {"type": "error", "content": "System prompt updates are disabled."}
                     )
                     continue
+                # Empty prompt resets to the app default for this connection.
                 prompt = (payload.get("prompt") or "").strip()
                 if prompt:
                     conn.system_prompt = prompt[:20_000]
-                    await send({"type": "system_updated"})
+                else:
+                    conn.system_prompt = app.system_prompt
+                await send({"type": "system_updated"})
                 continue
 
             if action == "set_session":

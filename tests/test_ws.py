@@ -69,6 +69,66 @@ class TestWebSocketProtocol:
             msg = ws.receive_json()
             assert msg["type"] == "cleared"
 
+    def test_set_history_restores_context(self, client):
+        """Past conversations must restore server history for continue/regenerate."""
+        with client.websocket_connect("/ws") as ws:
+            for _ in range(5):
+                msg = ws.receive_json()
+                if msg.get("type") == "session_state":
+                    break
+
+            ws.send_json({
+                "action": "set_history",
+                "messages": [
+                    {"role": "user", "content": "My name is Ada"},
+                    {"role": "assistant", "content": "Hello Ada!"},
+                ],
+            })
+            msg = ws.receive_json()
+            assert msg["type"] == "history_set"
+            assert msg["count"] == 2
+
+            # Follow-up should see prior context via server history
+            ws.send_json({"action": "chat", "message": "What is my name?"})
+            events = []
+            for _ in range(20):
+                m = ws.receive_json()
+                events.append(m)
+                if m.get("type") == "end":
+                    break
+            assert any(e["type"] == "start" for e in events)
+            assert events[-1]["type"] == "end"
+
+    def test_set_history_filters_invalid(self, client):
+        with client.websocket_connect("/ws") as ws:
+            for _ in range(5):
+                msg = ws.receive_json()
+                if msg.get("type") == "session_state":
+                    break
+
+            ws.send_json({
+                "action": "set_history",
+                "messages": [
+                    {"role": "system", "content": "ignore me"},
+                    {"role": "user", "content": "  "},
+                    {"role": "user", "content": "ok"},
+                    {"role": "tool", "content": "nope"},
+                    "not a dict",
+                    {"role": "assistant", "content": "hi"},
+                ],
+            })
+            msg = ws.receive_json()
+            assert msg["type"] == "history_set"
+            assert msg["count"] == 2
+
+    def test_config_exposes_client_flags(self, client):
+        with client.websocket_connect("/ws") as ws:
+            config = ws.receive_json()
+            assert config["type"] == "config"
+            assert "allow_system_prompt" in config
+            assert "history_turns" in config
+            assert "max_message_chars" in config
+
     def test_invalid_json(self, client):
         with client.websocket_connect("/ws") as ws:
             for _ in range(2):

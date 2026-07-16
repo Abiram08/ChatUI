@@ -274,6 +274,12 @@
 }
 .sys-save:hover { background: var(--accent-hover); }
 .sys-save:active { transform: scale(0.98); }
+.sys-hint {
+  margin: 0.35rem 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
 
 /* Tools rail */
 .sb-tools {

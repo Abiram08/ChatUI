@@ -142,8 +142,16 @@ function renderWidgetGroup(widgets) {
       (w.props.options || []).forEach(opt => {
         const btn = document.createElement('button');
         btn.className = 'w-btn secondary';
+        btn.type = 'button';
         btn.textContent = String(opt);
         btn.addEventListener('click', () => {
+          chipsRow.querySelectorAll('.w-btn').forEach(b => {
+            b.classList.remove('primary');
+            b.classList.add('secondary');
+            b.disabled = true;
+          });
+          btn.classList.remove('secondary');
+          btn.classList.add('primary');
           ws({ action: 'widget_event', event: 'choice_select', widget_id: w.id, key: w.props.key, value: opt, data: { key: w.props.key, value: opt } });
         });
         chipsRow.appendChild(btn);
@@ -160,22 +168,46 @@ function renderWidgetGroup(widgets) {
       card.className = 'widget-card';
       const form = document.createElement('div');
       form.className = 'w-form';
-      const fieldValues = {};
+      const fieldEls = [];
       (w.props.fields || []).forEach(fw => {
         const fieldWrap = document.createElement('div');
         fieldWrap.innerHTML = buildWidgetHTML(fw);
-        const input = fieldWrap.querySelector('[data-widget-key]');
-        if (input) {
-          input.addEventListener('change', () => { fieldValues[fw.props.key] = input.value; });
-          fieldValues[fw.props.key] = input.value || '';
-        }
+        const input = fieldWrap.querySelector('input, select, textarea');
+        if (input) fieldEls.push({ key: fw.props.key, el: input, type: fw.widget });
         form.appendChild(fieldWrap.firstChild || fieldWrap);
       });
+      const readFields = () => {
+        const values = {};
+        fieldEls.forEach(({ key, el, type }) => {
+          if (!key) return;
+          if (type === 'checkbox' || el.type === 'checkbox') values[key] = !!el.checked;
+          else if (type === 'slider' || el.type === 'range') values[key] = parseFloat(el.value);
+          else values[key] = el.value;
+        });
+        return values;
+      };
       const submitBtn = document.createElement('button');
       submitBtn.className = 'w-btn primary';
+      submitBtn.type = 'button';
       submitBtn.textContent = 'Submit';
-      submitBtn.addEventListener('click', () => {
-        ws({ action: 'widget_event', event: 'form_submit', widget_id: w.id, key: w.props.submit_key, value: fieldValues, data: { key: w.props.submit_key, values: fieldValues } });
+      const submitForm = () => {
+        const fieldValues = readFields();
+        ws({
+          action: 'widget_event',
+          event: 'form_submit',
+          widget_id: w.id,
+          key: w.props.submit_key,
+          value: fieldValues,
+          data: { key: w.props.submit_key, values: fieldValues },
+        });
+      };
+      submitBtn.addEventListener('click', submitForm);
+      fieldEls.forEach(({ el }) => {
+        if (el.tagName === 'INPUT' && el.type === 'text') {
+          el.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); submitForm(); }
+          });
+        }
       });
       form.appendChild(submitBtn);
       card.appendChild(form);
@@ -351,11 +383,19 @@ function bindWidgetEvents(card, w) {
         ws({ action: 'widget_event', event: 'button_click', widget_id: w.id, key, value: true, data: { key } });
       });
     } else if (action === 'text_input_submit') {
-      el.addEventListener('click', () => {
+      const submitText = () => {
         const input = card.querySelector('input[data-widget-key]');
         const val = input ? input.value : '';
         ws({ action: 'widget_event', event: 'text_input_submit', widget_id: w.id, key, value: val, data: { key, value: val } });
-      });
+      };
+      el.addEventListener('click', submitText);
+      const input = card.querySelector('input[data-widget-key]');
+      if (input && !input.dataset.enterBound) {
+        input.dataset.enterBound = '1';
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); submitText(); }
+        });
+      }
     } else if (action === 'selectbox_change') {
       el.addEventListener('change', () => {
         ws({ action: 'widget_event', event: 'selectbox_change', widget_id: w.id, key, value: el.value, data: { key, value: el.value } });
