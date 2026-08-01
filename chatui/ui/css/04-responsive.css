@@ -1,0 +1,55 @@
+@media (min-width: 1600px) {
+  .message-list { max-width: 780px; }
+  .composer-inner { max-width: 780px; }
+}
+
+@media (max-width: 1023px) and (min-width: 769px) {
+  .sidebar { width: 220px; }
+}
+
+@media (max-width: 768px) {
+  .message-list { max-width: 100%; }
+  .composer-inner { max-width: 100%; }
+  .messages { padding: 16px 12px 4px; }
+  .composer { padding: 6px 12px 12px; }
+  .composer-input { font-size: 16px; }
+  .msg { gap: 8px; }
+  .av { width: 22px; height: 22px; font-size: 8px; }
+  .msg.user .bub-text { padding: 8px 12px; font-size: 14px; max-width: 92%; }
+  .prose { font-size: 14px; }
+  .prose pre code { font-size: 12.5px; padding: 10px 12px; }
+  .welcome-title { font-size: 1.4rem; }
+  .welcome-sub { font-size: 13px; }
+  .welcome-icon { width: 42px; height: 42px; font-size: 18px; }
+  .composer-box { padding: 4px 4px 4px 12px; border-radius: 16px; }
+  .btn-send, .btn-stop { width: 34px; height: 34px; }
+  .scroll-bottom { bottom: 108px; }
+  .composer-hint { display: none; }
+  .chat-header { padding: 0 14px; height: 40px; }
+}
+
+@media (max-width: 480px) {
+  .messages { padding: 12px 8px 4px; }
+  .composer { padding: 4px 8px 10px; }
+}
+
+@media (pointer: coarse) {
+  .btn-send, .btn-stop { width: 40px; height: 40px; }
+  .composer-input { font-size: 16px; }
+  .chip { padding: 10px 18px; }
+  .conv-item { padding: 12px; }
+}
+
+@media print {
+  .sidebar, .composer, .tab-bar, .toast-container, .settings-overlay,
+  .settings-panel, .menu-btn, .conn-banner { display: none !important; }
+  .messages { overflow: visible; height: auto; }
+  .app { height: auto; display: block; }
+  html, body { height: auto; overflow: visible; }
+  .msg { break-inside: avoid; animation: none !important; }
+  body { background: white; color: black; }
+}
+
+@media (hover: none) {
+  .msg-actions { opacity: 1; }
+}

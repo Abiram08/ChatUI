@@ -1,65 +1,52 @@
-# Architecture (short)
+# Architecture
 
-How ChatUI is put together — for people hacking on the code.
+ChatUI is a Python library that serves a real-time chat UI over HTTP + WebSocket — no frontend build step required.
 
-## Big picture
+## Overview
 
 ```
-Browser (chatui/ui/)  ←WebSocket→  FastAPI (chatui/server/)
-                                      ↓
-                              agent loop + tools
-                                      ↓
-                         providers (Anthropic / OpenAI-compat)
+┌─────────────┐     HTTP/WS      ┌──────────────┐
+│   Browser   │ ◄──────────────► │   Python      │
+│  (vanilla   │                  │   Server      │
+│   HTML/CSS/JS│                  │  (FastAPI)    │
+└─────────────┘                  └──────┬───────┘
+                                        │
+                                  ┌─────▼──────┐
+                                  │  reply()    │
+                                  │  handler    │
+                                  └────────────┘
 ```
 
-One Python process. No Node build. CSS/JS ship inside the package.
+## Server (`chatui/_server.py`)
 
-## Main modules
+- `ChatUI` class manages a FastAPI application
+- `GET /` serves the assembled HTML page with theme CSS injected
+- `GET /health` returns `{"status": "ok"}`
+- `WS /ws` handles real-time chat via JSON messages
+- Static files mounted at `/vendor/` and `/js/`
 
-| Module | Role |
-|--------|------|
-| `chatui/api.py` | `chat()` — one-liner API |
-| `chatui/app.py` | `ChatUI` config, tools, components, events |
-| `chatui/server/builder.py` | FastAPI app, static assets, HTML |
-| `chatui/server/ws.py` | WebSocket protocol + chat loop wiring |
-| `chatui/agent/loop.py` | Shared agent / tool-call loop |
-| `chatui/providers/` | LLM adapters (`anthropic`, `openai_compat`, `detect`) |
-| `chatui/runtime/` | Per-connection state + history helpers |
-| `chatui/widgets.py` | Widget builders |
-| `chatui/tools.py` | Tool + component registries |
-| `chatui/themes/` | Theme tokens |
-| `chatui/ui/` | `index.html`, CSS partials, JS, vendored libs |
+## Frontend (`chatui/ui/`)
 
-## Request flow
+- **`index.html`** — single HTML template with `{{PLACEHOLDERS}}` for server-side values
+- **`css/`** — modular CSS partials assembled by `assets.py`
+- **`js/app.js`** — all frontend logic (WebSocket, rendering, conversations, settings)
+- **`vendor/`** — vendored third-party libraries (marked, DOMPurify, highlight.js)
 
-1. `GET /` → HTML + concatenated CSS + theme vars  
-2. Browser opens `WS /ws`  
-3. Server sends `config`, tools list, session  
-4. Client sends `{ "action": "chat", "message": "..." }`  
-5. Agent loop streams `token` / `tool_call` / `widgets` / `end`  
-6. Past chats call `set_history` so the server has context again  
+### CSS Partials
 
-## WebSocket actions (client → server)
+| File | Content |
+|------|---------|
+| `00-base.css` | Reset, variables, base typography |
+| `01-layout.css` | Sidebar, main, tabs, settings panel |
+| `02-messages.css` | Messages, welcome screen, markdown |
+| `03-composer.css` | Input area, toasts, connection banner |
+| `04-responsive.css` | Responsive breakpoints, print, touch |
 
-`chat` · `stop` · `regenerate` · `clear` · `set_history` · `widget_event` · `update_system` · session get/set
+## Themes (`chatui/themes/`)
 
-## Frontend
+- `palettes.py` — 4 themes defined in OKLCH color space
+- `__init__.py` — registry with `get_css_vars()` and `get_themes_json()`
 
-- `ui/js/app.js` — connection, messages, history, settings  
-- `ui/js/widgets.js` — widget rendering  
-- `ui/js/markdown.js` — marked + DOMPurify + code copy  
-- `ui/css/*.css` — order listed in `manifest.txt`  
+## Asset Pipeline (`chatui/ui/assets.py`)
 
-## Design preferences
-
-- Chat-first UI (not a generic dashboard framework)
-- Safe defaults: sanitize markdown, don’t put secrets in HTML
-- Keep `chat()` easy for beginners
-
-## Tests
-
-```bash
-pytest
-```
-
-Coverage focuses on Python packages; UI is checked via demos + asset tests.
+CSS partials are concatenated at serve time (cached). The HTML template is cached in memory. Theme variables are injected before CSS so they cascade correctly.

@@ -1,8 +1,5 @@
-00-tokens.css
-01-shell.css
-02-main.css
-03-messages.css
-04-tools.css
-05-widgets.css
-06-composer.css
-07-responsive.css
+00-base.css
+01-layout.css
+02-messages.css
+03-composer.css
+04-responsive.css

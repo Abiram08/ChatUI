@@ -1,191 +1,144 @@
 """
-chatui — simple Python UI for AI chatbots.
+chatui — open-source UI library for AI chatbots.
+
+Write Python, get a streaming chat interface. No frontend build required.
+
+Quickstart::
 
     from chatui import chat
-    chat()
 
-    # Tools (plain functions)
-    def get_weather(city: str) -> dict:
-        '''Current weather for a city.'''
-        return {"city": city, "temp": "22C"}
-
-    chat(tools=[get_weather], title="Weather Bot")
-
-    # No LLM key
-    def echo(message: str, session) -> str:
+    def echo(message, session):
         return f"You said: {message}"
 
     chat(reply=echo, title="Echo Bot")
+
+Features
+--------
+- Gradio/Streamlit-style Python API
+- 2 layouts (sidebar, tabs)
+- 4 themes (dark, light, sepia, slate)
+- Markdown rendering with code highlighting
+- Streaming responses via WebSocket
+- Conversation history in localStorage
+- Settings panel (theme, font)
 """
-from .app import ChatUI
-from ._constants import VERSION
-from .session import SessionState
-from .api import chat
-from .widgets import (
-    Widget,
-    button,
-    checkbox,
-    choice,
-    columns,
-    confirm,
-    divider,
-    end_columns,
-    end_expander,
-    expander,
-    file_uploader,
-    form,
-    html,
-    image,
-    markdown,
-    metric,
-    progress,
-    radio,
-    selectbox,
-    slider,
-    spinner,
-    stack,
-    status,
-    table,
-    text_input,
-    toast,
-    actions,
-    row,
-    card,
-)
+from __future__ import annotations
 
-__all__ = [
-    "ChatUI",
-    "SessionState",
-    "VERSION",
-    "Widget",
-    "chat",
-    "button",
-    "text_input",
-    "selectbox",
-    "radio",
-    "checkbox",
-    "slider",
-    "progress",
-    "status",
-    "table",
-    "markdown",
-    "html",
-    "image",
-    "divider",
-    "metric",
-    "columns",
-    "end_columns",
-    "expander",
-    "end_expander",
-    "toast",
-    "file_uploader",
-    "spinner",
-    "actions",
-    "row",
-    "stack",
-    "card",
-    "choice",
-    "form",
-    "confirm",
-]
+from typing import Any, Callable
 
-__version__ = VERSION
+from ._server import ChatUI, MessageHandler
+
+VERSION = "0.3.0"
 
 
 def chat(
     *,
-    tools=None,
-    components=None,
-    on=None,
-    reply=None,
-    title="ChatUI",
-    theme="manuscript",
-    provider="auto",
-    model=None,
-    host="0.0.0.0",
-    port=8000,
-    **kwargs,
-):
+    reply: MessageHandler,
+    title: str = "Chat",
+    subtitle: str = "",
+    logo: str = "\u25c6",
+    welcome_title: str = "What can I help with?",
+    layout: str = "sidebar",
+    theme: str = "dark",
+    chips: list[str] | None = None,
+    host: str = "0.0.0.0",
+    port: int = 8000,
+) -> None:
     """Start a ChatUI server with minimal ceremony.
 
-    Auto-detects provider from environment variables when provider="auto".
-    """
-    from .api import chat as _chat
+    Parameters
+    ----------
+    reply : Callable
+        Function that handles messages. Receives ``(message, session)``.
+        Can be sync, async, sync generator, or async generator.
+    title : str, optional
+        Page title, by default "Chat"
+    subtitle : str, optional
+        Subtitle shown below the welcome heading
+    logo : str, optional
+        Logo character, by default "◆"
+    welcome_title : str, optional
+        Welcome screen heading, by default "What can I help with?"
+    layout : str, optional
+        One of "sidebar" or "tabs", by default "sidebar"
+    theme : str, optional
+        One of "dark", "light", "sepia", "slate", by default "dark"
+    chips : list[str] | None, optional
+        Suggested prompt chips shown on the welcome screen
+    host : str, optional
+        Bind address, by default "0.0.0.0"
+    port : int, optional
+        Bind port, by default 8000
 
-    return _chat(
-        tools=tools,
-        components=components,
-        on=on,
+    Examples
+    --------
+    >>> from chatui import chat
+    >>> def echo(message, session):
+    ...     return f"You said: {message}"
+    >>> chat(reply=echo)
+    """
+    app = ChatUI(
         reply=reply,
         title=title,
+        subtitle=subtitle,
+        logo=logo,
+        welcome_title=welcome_title,
+        layout=layout,
         theme=theme,
-        provider=provider,
-        model=model,
+        chips=chips,
         host=host,
         port=port,
-        **kwargs,
     )
+    app.run()
 
 
-def main():
-    """Entry point for the ``chatui`` CLI."""
+def main() -> None:
+    """CLI entry point. Runs a simple echo server for testing."""
     import argparse
-    import os
-    import sys
-
-    from dotenv import load_dotenv
-
-    load_dotenv()
 
     parser = argparse.ArgumentParser(
         prog="chatui",
-        description="ChatUI - production-ready AI chatbot interface",
+        description="ChatUI - open-source chatbot UI library",
+    )
+    parser.add_argument("--port", type=int, default=8000, help="Bind port")
+    parser.add_argument("--host", default="0.0.0.0", help="Bind address")
+    parser.add_argument(
+        "--theme",
+        default="dark",
+        choices=["dark", "light", "sepia", "slate"],
+        help="Color theme",
     )
     parser.add_argument(
-        "--provider",
-        default="auto",
-        choices=["auto", "anthropic", "ollama", "groq", "openai"],
+        "--layout",
+        default="sidebar",
+        choices=["sidebar", "tabs"],
+        help="Layout mode",
     )
-    parser.add_argument("--model", default=None, help="Override the default model")
-    parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--theme", default="manuscript")
-    parser.add_argument("--title", default="ChatUI")
+    parser.add_argument("--title", default="Chat", help="Page title")
     parser.add_argument(
-        "--log-level",
-        default="info",
-        choices=["debug", "info", "warning", "error"],
+        "--version",
+        action="version",
+        version=f"chatui {VERSION}",
     )
-    parser.add_argument("--auth-key", default=None, help="Bearer / ?token= secret")
-    parser.add_argument("--rate-limit", type=int, default=0, help="Requests per minute (0=off)")
-    parser.add_argument("--no-browser", action="store_true", default=False)
-    parser.add_argument("--version", action="version", version=f"chatui {__version__}")
     args = parser.parse_args()
 
-    # Auto-detect provider
-    if args.provider == "auto":
-        try:
-            from .providers.detect import detect_provider_from_env
-
-            provider, default_model = detect_provider_from_env()
-            if args.model is None:
-                args.model = default_model
-        except Exception as e:
-            print(str(e))
-            sys.exit(1)
-    else:
-        provider = args.provider
+    def _echo(message: str, session: dict) -> str:
+        return f"Echo: {message}"
 
     app = ChatUI(
-        provider=provider,
-        model=args.model,
+        reply=_echo,
+        title=args.title,
+        layout=args.layout,
+        theme=args.theme,
         host=args.host,
         port=args.port,
-        theme=args.theme,
-        title=args.title,
-        open_browser=not args.no_browser,
-        log_level=args.log_level,
-        auth_key=args.auth_key,
-        rate_limit=args.rate_limit,
     )
     app.run()
+
+
+__all__ = [
+    "chat",
+    "ChatUI",
+    "MessageHandler",
+    "VERSION",
+]

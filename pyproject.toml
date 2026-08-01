@@ -4,18 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chatui"
-version = "0.2.0"
-description = "Simple Python UI library for AI chatbots. Streaming chat, tools, widgets — no frontend build."
+version = "0.3.0"
+description = "Open-source UI library for AI chatbots. Gradio/Streamlit-style Python API with 2 layouts and 4 themes."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
     { name = "ChatUI Contributors" },
 ]
-keywords = [
-    "chatbot", "ai", "llm", "ui", "fastapi",
-    "websocket", "tools", "groq", "ollama", "openai",
-]
+keywords = ["chatbot", "ai", "chat", "ui", "fastapi", "websocket", "streamlit", "gradio"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -26,40 +23,30 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Software Development :: Libraries :: Python Modules",
-    "Framework :: FastAPI",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
     "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.30.6",
-    "python-dotenv>=1.0.1",
-    "websockets>=12.0",
+    "uvicorn>=0.30.0",
 ]
 
 [project.optional-dependencies]
-anthropic = ["anthropic>=0.34.2"]
-ollama = ["openai>=1.0.0"]
-groq = ["openai>=1.0.0"]
-openai = ["openai>=1.0.0"]
-all = ["openai>=1.0.0", "anthropic>=0.34.2"]
 dev = [
     "pytest>=8.0",
-    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.24",
     "httpx>=0.27",
-    "openai>=1.0.0",
-    "anthropic>=0.34.2",
+    "websockets>=12.0",
 ]
-
-[project.scripts]
-chatui = "chatui:main"
 
 [project.urls]
 Homepage = "https://github.com/chatui/chatui"
 Repository = "https://github.com/chatui/chatui"
 Issues = "https://github.com/chatui/chatui/issues"
-Changelog = "https://github.com/chatui/chatui/blob/main/CHANGELOG.md"
+
+[project.scripts]
+chatui = "chatui:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["chatui"]
@@ -70,34 +57,11 @@ packages = ["chatui"]
 "chatui/ui/vendor" = "chatui/ui/vendor"
 "chatui/ui/js" = "chatui/ui/js"
 
-[tool.hatch.build.targets.sdist]
-include = [
-    "chatui",
-    "tests",
-    "demo",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md",
-    "CONTRIBUTING.md",
-    "ARCHITECTURE.md",
-    "pyproject.toml",
-    "requirements.txt",
-]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-q --strict-markers"
+asyncio_mode = "auto"
 filterwarnings = [
     "ignore::DeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
 ]
-
-[tool.coverage.run]
-source = ["chatui"]
-branch = true
-omit = ["chatui/ui/*"]
-
-[tool.coverage.report]
-show_missing = true
-skip_covered = false
-fail_under = 60

@@ -1,125 +1,88 @@
-"""Unit tests for chatui.themes — palettes, CSS vars, JSON export."""
+"""Tests for the theme system — palette definitions and CSS generation."""
 from __future__ import annotations
 
-import json
-
-import pytest
-
 from chatui.themes import (
-    DEFAULT_THEME,
-    THEME_LABELS,
-    THEME_MODES,
-    THEME_NAMES,
     THEMES,
+    THEME_NAMES,
+    THEME_LABELS,
+    DEFAULT_THEME,
     get_css_vars,
     get_themes_json,
 )
 
-REQUIRED_TOKENS = {
-    "--bg-base",
-    "--bg-surface",
-    "--bg-elevated",
-    "--bg-user",
-    "--bg-code",
-    "--text-primary",
-    "--text-secondary",
-    "--text-tertiary",
-    "--accent",
-    "--accent-hover",
-    "--accent-ghost",
-    "--accent-glow",
-    "--accent-fg",
-    "--border",
-    "--border-strong",
-    "--border-focus",
-    "--error",
-    "--success",
-    "--warning",
-    "--font-serif",
-    "--font-sans",
-    "--font-mono",
-}
 
-FORBIDDEN_COLORS = {
-    "#000",
-    "#000000",
-    "#fff",
-    "#ffffff",
-    "white",
-    "black",
-    "oklch(100% 0 0)",
-    "oklch(0% 0 0)",
-}
+class TestThemeData:
+    def test_has_four_themes(self):
+        assert len(THEMES) == 4
 
+    def test_all_themes_in_names(self):
+        for name in ("dark", "light", "sepia", "slate"):
+            assert name in THEME_NAMES
 
-class TestThemeCatalog:
-    def test_theme_count(self):
-        # 11 Zed-inspired + 9 legacy = 20 themes
-        assert len(THEMES) == 20
-        assert len(THEME_NAMES) == 20
+    def test_all_themes_have_labels(self):
+        for name in THEME_NAMES:
+            assert name in THEME_LABELS
 
-    def test_zed_themes_present(self):
-        for name in ("one_dark", "zed_dark", "ayu_light", "rose_pine", "catppuccin_mocha"):
-            assert name in THEMES, f"{name} missing"
+    def test_default_is_dark(self):
+        assert DEFAULT_THEME == "dark"
 
-    def test_legacy_themes_present(self):
-        for name in ("manuscript", "ink", "obsidian", "midnight"):
-            assert name in THEMES, f"{name} missing"
-
-    def test_default_exists(self):
-        assert DEFAULT_THEME in THEMES
-
-    def test_labels_cover_all(self):
-        assert set(THEME_LABELS) == set(THEMES)
-
-    def test_modes_partition(self):
-        light = set(THEME_MODES["light"])
-        dark = set(THEME_MODES["dark"])
-        assert light.isdisjoint(dark)
-        assert light | dark == set(THEMES)
-
-    def test_each_theme_has_required_tokens(self):
+    def test_each_theme_has_required_keys(self):
+        required = {"mode", "--bg-base", "--text-primary", "--accent"}
         for name, theme in THEMES.items():
-            assert theme["mode"] in ("light", "dark"), name
-            missing = REQUIRED_TOKENS - set(theme)
-            assert not missing, f"{name} missing {missing}"
+            assert required.issubset(theme.keys()), f"{name} missing keys"
 
-    def test_no_pure_black_or_white(self):
+    def test_each_theme_has_fonts(self):
         for name, theme in THEMES.items():
-            for key, value in theme.items():
-                if key == "mode":
-                    continue
-                assert value not in FORBIDDEN_COLORS, f"{name}.{key}={value}"
-                # surfaces should carry chroma (tinted neutrals)
-                if key.startswith("--bg-") and "oklch" in value:
-                    assert "oklch(100%" not in value, name
+            assert "--font-sans" in theme
+            assert "--font-mono" in theme
+
+    def test_each_theme_has_mode(self):
+        for name, theme in THEMES.items():
+            assert theme["mode"] in ("dark", "light")
 
 
-class TestCssExport:
-    def test_get_css_vars_shape(self):
-        css = get_css_vars("manuscript")
+class TestCSSVars:
+    def test_get_css_vars_returns_root_block(self):
+        css = get_css_vars("dark")
         assert css.startswith(":root {")
         assert css.endswith("}")
-        assert "--accent:" in css
-        assert "--accent-fg:" in css
-        assert "mode" not in css.split(":")[0]  # mode not as bare property
+        assert "--bg-base" in css
+        assert "--accent" in css
 
-    def test_unknown_theme_falls_back(self):
-        css = get_css_vars("does-not-exist")
-        assert "--accent:" in css
-        # same as default
-        assert get_css_vars(DEFAULT_THEME) == css
+    def test_get_css_vars_fallback_to_default(self):
+        css = get_css_vars("nonexistent")
+        assert "--bg-base" in css
 
-    def test_themes_json_roundtrip(self):
+    def test_get_css_vars_excludes_mode(self):
+        css = get_css_vars("light")
+        assert "mode" not in css
+
+    def test_all_themes_generate_valid_css(self):
+        for name in THEME_NAMES:
+            css = get_css_vars(name)
+            assert css.startswith(":root {")
+            assert css.count("--") >= 15
+
+
+class TestThemesJSON:
+    def test_returns_valid_json(self):
+        import json
         data = json.loads(get_themes_json())
-        assert set(data) == set(THEMES)
-        assert data["ink"]["mode"] == "dark"
-        assert "--accent-fg" in data["ink"]
+        assert isinstance(data, dict)
+        assert len(data) == 4
 
-    @pytest.mark.parametrize("name", THEME_NAMES)
-    def test_oklch_tokens(self, name):
-        theme = THEMES[name]
-        for key, value in theme.items():
-            if key in ("mode",) or key.startswith("--font-"):
-                continue
-            assert "oklch(" in value or value.startswith("oklch"), f"{name}.{key}"
+    def test_subset_filter(self):
+        import json
+        data = json.loads(get_themes_json(subset=["dark", "light"]))
+        assert set(data.keys()) == {"dark", "light"}
+
+    def test_subset_with_default(self):
+        import json
+        data = json.loads(get_themes_json(subset=["nonexistent"]))
+        assert "nonexistent" in data
+
+    def test_values_contain_css_vars(self):
+        import json
+        data = json.loads(get_themes_json())
+        for name, theme in data.items():
+            assert "--bg-base" in theme

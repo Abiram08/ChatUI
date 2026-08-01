@@ -1,64 +1,65 @@
 # Contributing
 
-Thanks for checking out ChatUI. This is an early project — small, clear PRs help a lot.
+Thank you for considering contributing to ChatUI. This guide will help you get started.
 
-## Setup
+## Development Setup
 
 ```bash
-git clone <this-repo>
-cd ChatUI
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-source .venv/bin/activate
-pip install -e ".[dev]"
+git clone https://github.com/chatui/chatui
+cd chatui
+pip install -e .
+```
+
+## Project Structure
+
+```
+chatui/          # Python library
+  __init__.py    # Public API
+  _server.py     # WebSocket server + FastAPI app
+  themes/        # Color themes
+  ui/            # Frontend assets
+    index.html   # HTML template
+    css/         # CSS partials
+    js/          # JavaScript
+    vendor/      # Third-party JS
+demo/            # Example scripts
+tests/           # Pytest suite
+```
+
+## Running Tests
+
+```bash
+pip install pytest httpx websockets
 pytest
 ```
 
-Try the UI without an API key:
+## Code Style
 
-```bash
-python demo/demo_echo.py
+- Python: follow PEP 8, use type hints
+- CSS: use OKLCH colors, 2-space indent
+- JS: use `const`/`let`, template literals, no semicolons
+
+## Pull Requests
+
+1. Fork the repo
+2. Create a feature branch
+3. Write tests for new functionality
+4. Ensure all tests pass
+5. Submit a PR with a clear description
+
+## Adding a Theme
+
+Add to `chatui/themes/palettes.py`:
+
+```python
+"my_theme": {
+    "mode": "dark",
+    "--bg-base": "oklch(...)",
+    "--accent": "oklch(...)",
+    # ... see existing themes for all required keys
+}
 ```
 
-## How to help
+## Adding a Layout
 
-- Fix bugs or typos
-- Improve demos / README
-- Add tests
-- Small UI polish in `chatui/ui/`
-- New provider bits in `chatui/providers/`
-
-Open an issue first for big ideas.
-
-## Guidelines
-
-1. Keep the **beginner path** simple: `from chatui import chat; chat()` should always work.
-2. **No Node/npm** for the core UI — edit HTML/CSS/JS in `chatui/ui/` directly.
-3. Support **Python 3.9+**.
-4. Add a test when you change behavior.
-5. Don’t commit API keys or `.env` files.
-
-## Tests
-
-```bash
-pytest
-```
-
-## Code map
-
-| Path | What it is |
-|------|------------|
-| `chatui/api.py` | `chat()` helper |
-| `chatui/app.py` | main `ChatUI` class |
-| `chatui/server/` | HTTP + WebSocket |
-| `chatui/agent/` | tool / agent loop |
-| `chatui/providers/` | LLM adapters |
-| `chatui/ui/` | browser UI assets |
-| `demo/` | examples |
-| `tests/` | tests |
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a deeper walkthrough.
-
-## License
-
-By contributing, you agree your changes are under the MIT License.
+Add the layout class to `chatui/ui/index.html` body, CSS to `chatui/ui/css/01-layout.css`, and JS support to `chatui/ui/js/app.js`.

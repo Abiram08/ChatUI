@@ -1,873 +1,534 @@
-/* ════════════════════════════════════════════════════════════════════════════
-   ChatUI — app.js
-   Core application: WebSocket, message handler, rendering, input, conversations,
-   themes, settings, export/import, mobile sidebar, init.
-   Depends on: esc(), renderMarkdown() from markdown.js
-               renderWidgetGroup(), showToast() from widgets.js
-   ════════════════════════════════════════════════════════════════════════════ */
-
 marked.setOptions({ breaks: true, gfm: true });
 
-const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const scr = () => {
-  const c = document.getElementById('mwrap');
-  c.scrollTop = c.scrollHeight;
-  S.ascroll = true;
-  updateJumpBtn();
+const ICONS = {
+  copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  regen: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>',
 };
-const mlist = () => document.getElementById('mlist');
-const addEl = h => {
-  const t = document.createElement('template');
-  t.innerHTML = h.trim();
-  mlist().appendChild(t.content);
-};
-function updateJumpBtn() {
-  const btn = document.getElementById('jumpLatest');
-  if (!btn) return;
-  btn.hidden = !!S.ascroll;
-}
 
-/* ── State ─────────────────────────────────────────────────── */
 const S = {
-  ws: null, connected: false, streaming: false, retries: 0,
-  streamEl: null, raw: '', thinkId: null, tbEl: null,
-  currentAiMsg: null,
-  convs: (() => { try { return JSON.parse(localStorage.getItem('cui3') || '[]'); } catch (_) { return []; } })(),
-  msgHistory: [],
-  aid: null, ascroll: true,
-  session: {},
-  allowSystemPrompt: false,
-  maxMessageChars: 12000,
-  maxRetries: 10,
-  reconnectTimer: null,
+  ws: null, connected: false, streaming: false, retries: 0, maxRetries: 10,
+  streamEl: null, raw: '', msgHistory: [],
+  aid: null, ascroll: true, convs: [],
+  themeData: THEME_DATA, activeTheme: ACTIVE_THEME, layout: LAYOUT,
   providerLabel: '',
 };
 
-/* ── WebSocket ─────────────────────────────────────────────── */
+function esc(t) { const d = document.createElement('div'); d.textContent = String(t); return d.innerHTML; }
+
+function renderMarkdown(t) {
+  if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') return esc(t);
+  return DOMPurify.sanitize(marked.parse(t || ''), {
+    ALLOWED_TAGS: ['p','br','strong','em','code','pre','ul','ol','li','blockquote','a','table','thead','tbody','tr','th','td','h1','h2','h3','h4','h5','h6','hr','del','ins','sub','sup','span','img'],
+    ALLOWED_ATTR: ['href','src','alt','title','class']
+  });
+}
+
+const $ = id => document.getElementById(id);
+const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const addEl = h => { const t = document.createElement('template'); t.innerHTML = h.trim(); $('messageList').appendChild(t.content); };
+
+function relTime(ts) {
+  const diff = Date.now() - (ts || Date.now());
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'now';
+  if (m < 60) return m + 'm';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + 'h';
+  const d = Math.floor(h / 24);
+  if (d < 7) return d + 'd';
+  return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function scr() { const c = $('messages'); if (c) { c.scrollTop = c.scrollHeight; S.ascroll = true; } updateScrollBtn(); }
+
+function updateScrollBtn() {
+  const c = $('messages'), btn = $('scrollBtn');
+  if (!c || !btn) return;
+  const atBottom = c.scrollHeight - c.scrollTop - c.clientHeight < 80;
+  S.ascroll = atBottom;
+  btn.hidden = atBottom || !S.msgHistory.length;
+}
+
+function showToast(msg, type) {
+  const box = $('toastContainer');
+  if (!box) return;
+  const el = document.createElement('div');
+  el.className = 'toast' + (type === 'error' ? ' error' : '');
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function thinkingHtml() {
+  return '<div class="thinking"><span class="thinking-label">Thinking</span>' +
+    '<span class="thinking-dots"><span></span><span></span><span></span></span></div>';
+}
+
+function msgActionsHtml(includeRegen) {
+  const regen = includeRegen
+    ? `<button class="btn-msg-action btn-regen" onclick="regenerate()" title="Regenerate" aria-label="Regenerate">${ICONS.regen}</button>`
+    : '';
+  return `<div class="msg-actions">` +
+    `<button class="btn-msg-action" onclick="copyMsg(this)" title="Copy" aria-label="Copy">${ICONS.copy}</button>` +
+    regen + '</div>';
+}
+
 function connect(manual) {
   if (S.ws && (S.ws.readyState === 0 || S.ws.readyState === 1)) return;
-  if (manual) {
-    S.retries = 0;
-    if (S.reconnectTimer) { clearTimeout(S.reconnectTimer); S.reconnectTimer = null; }
-  }
-  try {
-    S.ws = new WebSocket(WS_URL);
-  } catch (err) {
-    S.connected = false;
-    setStatus(false, 'failed');
-    return;
-  }
+  if (manual) { S.retries = 0; if (S._rt) { clearTimeout(S._rt); S._rt = null; } }
+  try { S.ws = new WebSocket(WS_URL); } catch (_) { S.connected = false; setStatus(false); return; }
   S.ws.onopen = () => {
-    S.connected = true;
-    S.retries = 0;
-    setStatus(true);
-    // Re-sync active conversation after reconnect so the model keeps context.
-    if (S.msgHistory.length) syncServerHistory(S.msgHistory);
+    S.connected = true; S.retries = 0; setStatus(true);
+    if (S.msgHistory.length) syncHistory(S.msgHistory);
+    updateComposerState();
   };
-  S.ws.onmessage = e => { try { handle(JSON.parse(e.data)); } catch(err) { console.error('Parse error:', err); } };
-  S.ws.onclose = (ev) => {
+  S.ws.onmessage = e => { try { handle(JSON.parse(e.data)); } catch (_) {} };
+  S.ws.onclose = () => {
     S.connected = false;
-    if (ev && ev.code === 4001) {
-      setStatus(false, 'auth');
-      document.getElementById('st').textContent = 'Unauthorized';
-      return;
-    }
     if (S.retries < S.maxRetries) {
-      S.retries++;
-      setStatus(false, 'retrying');
-      const delay = Math.min(1000 * Math.pow(1.5, S.retries), 15000);
-      S.reconnectTimer = setTimeout(connect, delay);
-    } else {
-      setStatus(false, 'failed');
-    }
+      S.retries++; setStatus(false);
+      S._rt = setTimeout(connect, Math.min(1000 * Math.pow(1.5, S.retries), 15000));
+    } else { setStatus(false); }
+    updateComposerState();
   };
-  S.ws.onerror = () => { S.connected = false; setStatus(false, S.retries >= S.maxRetries ? 'failed' : 'retrying'); };
+  S.ws.onerror = () => { S.connected = false; setStatus(false); updateComposerState(); };
 }
 
-function ws(o) {
-  if (S.ws && S.ws.readyState === 1) {
-    S.ws.send(JSON.stringify(o));
-    return true;
-  }
-  return false;
-}
+function ws(o) { return S.ws && S.ws.readyState === 1 ? (S.ws.send(JSON.stringify(o)), true) : false; }
 
-function setStatus(on, mode) {
-  const badge = document.getElementById('modelBadge');
-  const banner = document.getElementById('connBanner');
-  const st = document.getElementById('st');
-  badge.classList.toggle('off', !on);
-  if (on) {
-    st.textContent = S.providerLabel || 'Connected';
-    banner.classList.remove('show', 'failed');
-    banner.textContent = 'Connection lost — reconnecting automatically…';
-    banner.removeAttribute('role');
-    banner.onclick = null;
-    banner.onkeydown = null;
-    banner.tabIndex = -1;
+function setStatus(ok) {
+  const badge = $('statusBadge'), banner = $('connBanner'), dot = $('statusDot');
+  if (!badge) return;
+  if (ok) {
+    badge.textContent = S.providerLabel || 'Ready';
+    if (dot) { dot.classList.add('online'); dot.classList.remove('offline'); }
+    if (banner) banner.classList.remove('show');
     return;
   }
-  banner.classList.add('show');
-  if (mode === 'auth') {
-    banner.classList.add('failed');
-    banner.textContent = 'Unauthorized — check your access token and reload.';
-    st.textContent = 'Unauthorized';
-  } else if (mode === 'failed') {
-    banner.classList.add('failed');
-    banner.textContent = 'Connection lost — click here to reconnect';
-    banner.setAttribute('role', 'button');
-    banner.tabIndex = 0;
-    banner.onclick = () => connect(true);
-    banner.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); connect(true); } };
-    st.textContent = 'Offline';
-  } else {
-    banner.classList.remove('failed');
-    banner.textContent = 'Connection lost — reconnecting automatically…';
-    st.textContent = 'Reconnecting…';
-  }
+  badge.textContent = S.retries >= S.maxRetries ? 'Offline' : 'Reconnecting…';
+  if (dot) { dot.classList.remove('online'); dot.classList.add('offline'); }
+  if (banner) banner.classList.add('show');
 }
 
-/** Push local message history to the server so continue/regenerate work. */
-function syncServerHistory(messages) {
-  const msgs = (messages || []).filter(m =>
-    m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim()
-  ).map(m => ({ role: m.role, content: m.content }));
-  if (!msgs.length) {
-    ws({ action: 'clear' });
-    return;
-  }
-  ws({ action: 'set_history', messages: msgs });
+function syncHistory(msgs) {
+  const list = (msgs || []).filter(m => m && m.role && m.content).map(m => ({ role: m.role, content: m.content }));
+  if (!list.length) { ws({ action: 'clear' }); return; }
+  ws({ action: 'set_history', messages: list });
 }
 
-/* ── Message handler ───────────────────────────────────────── */
 function handle(d) {
   switch (d.type) {
     case 'config':
-      S.providerLabel = `${d.provider} \u00b7 ${d.model}`;
-      document.getElementById('st').textContent = S.providerLabel;
-      if (d.session) S.session._id = d.session;
-      if (d.lite) { document.body.classList.add('lite-mode'); }
-      if (typeof d.allow_system_prompt === 'boolean') {
-        S.allowSystemPrompt = d.allow_system_prompt;
-        applySystemPromptVisibility();
-      }
-      if (d.max_message_chars) S.maxMessageChars = d.max_message_chars;
+      S.providerLabel = d.label || '';
+      setStatus(true);
       break;
-    case 'history_set':
-      // Server acknowledged restored history — no UI change needed.
-      break;
-    case 'session_state':
-    case 'session_updated':
-      S.session = { ...S.session, ...(d.data || {}) };
-      if (d.key) S.session[d.key] = d.value;
-      break;
-    case 'start':
-    case 'start_again':
-      if (d.type === 'start') S.raw = '';
-      showThink(); S.streaming = true; setInput(false);
-      break;
+    case 'start': S.raw = ''; showThinking(); S.streaming = true; setInput(false); break;
     case 'token':
-      rmThink(); S.raw += d.content; renderStream(S.raw);
-      if (S.ascroll) scr();
-      break;
-    case 'tool_call':
-      rmThink(); showToolCard(d.id, d.name, d.inputs);
-      break;
-    case 'tool_result':
-      updateToolCard(d.id, d.result, d.name);
-      break;
-    case 'widgets':
-      if (d.widgets) renderWidgetGroup(d.widgets);
+      hideThinking(); S.raw += d.content; renderStream(S.raw);
+      if (S.ascroll) scr(); else updateScrollBtn();
       break;
     case 'end':
-      finalise(S.raw, d.usage);
-      S.streaming = false; S.streamEl = null; S.raw = ''; S.tbEl = null;
-      setInput(true); focusI(); saveConv();
+      hideThinking();
+      finalizeMsg(S.raw);
+      S.streaming = false; S.streamEl = null; S.raw = '';
+      setInput(true); saveConv(); if (S.ascroll) scr(); else updateScrollBtn(); focusInput();
       break;
     case 'stopped':
-      rmThink();
-      if (S.raw) finalise(S.raw, null);
-      else if (S.streamEl) {
-        const msgEl = S.streamEl.closest('.msg.ai');
-        if (msgEl) msgEl.remove();
-      }
-      S.streaming = false; S.streamEl = null; S.raw = ''; S.tbEl = null;
-      S.currentAiMsg = null;
-      setInput(true); focusI(); saveConv();
+      hideThinking();
+      if (S.raw) finalizeMsg(S.raw);
+      else if (S.streamEl) { const el = S.streamEl.closest('.msg'); if (el) el.remove(); }
+      S.streaming = false; S.streamEl = null; S.raw = '';
+      setInput(true); focusInput();
       break;
     case 'error':
-      if (S.thinkId) {
-        const el = document.getElementById(S.thinkId);
-        if (el) {
-          const b = el.querySelector('.bub');
-          b.classList.add('bub-error');
-          b.innerHTML = `<div class="prose" role="alert">${esc(d.content)}</div>`;
-        }
-        S.thinkId = null;
-      } else if (S.streamEl) {
-        S.streamEl.innerHTML = `<span style="color:var(--error)" role="alert">${esc(d.content)}</span>`;
-        S.streamEl = null;
-      } else {
-        showErr(d.content);
-      }
-      S.currentAiMsg = null;
-      S.streaming = false; setInput(true); focusI();
-      break;
-    case 'cleared':
-      // Server history cleared. Local list is managed by newChat/loadConv.
-      break;
-    case 'system_updated':
-      break;
-    case 'tools_ready':
-      showToolsPanel(d.tools);
-      break;
-    case 'components_ready':
-      showComponentsPanel(d.components);
-      break;
-    case 'component':
-      rmThink();
       if (S.streamEl) {
-        const msgEl = S.streamEl.closest('.msg.ai');
-        if (msgEl) msgEl.remove();
-        S.streamEl = null; S.currentAiMsg = null;
+        S.streamEl.innerHTML = `<span style="color:var(--error)">${esc(d.content)}</span>`;
+      } else {
+        showError(d.content);
       }
-      showComponent(d.name, d.html);
+      showToast(d.content, 'error');
+      S.streaming = false; S.streamEl = null; S.raw = '';
+      setInput(true); focusInput();
       break;
   }
 }
 
-/* ── Message rendering ─────────────────────────────────────── */
-function appendUser(t) {
-  addEl(`<div class="msg user"><div class="av user" aria-label="You"><span aria-hidden="true">You</span></div><div class="mb"><div class="bub"><div class="prose">${esc(t)}</div></div><div class="mmeta"><span class="mt">${now()}</span></div></div></div>`);
+function appendUser(text) {
+  addEl(`<div class="msg user"><div class="av user">U</div><div class="bub"><div class="bub-text"><div class="prose">${esc(text)}</div></div><div class="msg-meta"><span class="msg-time">${now()}</span></div></div></div>`);
+  return $('messageList').lastElementChild;
+}
+
+function showThinking() {
+  const id = 't' + Date.now();
+  addEl(`<div class="msg ai" id="${id}"><div class="av ai">◆</div><div class="bub"><div class="bub-text">${thinkingHtml()}</div></div></div>`);
+  S.streamEl = null;
   if (S.ascroll) scr();
 }
 
-function showThink() {
-  const id = 'tk' + Date.now(); S.thinkId = id;
-  addEl(`<div class="msg ai" id="${id}"><div class="av ai" aria-label="AI"><span aria-hidden="true">\u25c6</span></div><div class="mb"><div class="bub bub-ghost"><div class="think" aria-label="Thinking"><span class="think-pulse"></span><span class="think-label">Thinking</span></div></div></div></div>`);
-  if (S.ascroll) scr();
+function hideThinking() {
+  const el = $('messageList').lastElementChild;
+  if (!el || !el.id || !el.id.startsWith('t')) return;
+  const bub = el.querySelector('.bub-text');
+  if (!bub) return;
+  bub.innerHTML = '<div class="prose"></div>';
+  bub.closest('.bub').insertAdjacentHTML('beforeend',
+    `<div class="msg-meta"><span class="msg-time">${now()}</span></div>` +
+    msgActionsHtml(false)
+  );
+  S.streamEl = bub.querySelector('.prose');
+  el.id = '';
 }
 
-function rmThink() {
-  if (!S.thinkId) return;
-  const el = document.getElementById(S.thinkId);
-  if (!el) return;
-  const tid = S.thinkId;
-  const b = el.querySelector('.bub');
-  b.innerHTML = '<div class="prose"></div>';
-  S.streamEl = b.querySelector('.prose');
-  S.currentAiMsg = el;
-  el.querySelector('.mb').insertAdjacentHTML('beforeend', `
-    <div class="mmeta"><span class="mt">${now()}</span><span class="tbadge" id="tb${tid}"></span></div>
-    <div class="msg-actions" id="ma${tid}">
-      <button class="ma-btn" onclick="copyMsg('${tid}')" aria-label="Copy message">Copy</button>
-    </div>
-  `);
-  const bub = el.querySelector('.bub');
-  if (bub) bub.classList.remove('bub-ghost');
-  S.tbEl = document.getElementById('tb' + tid);
-  S.thinkId = null;
-}
-
-function renderStream(r) {
+function renderStream(text) {
   if (!S.streamEl) return;
-  S.streamEl.innerHTML = renderMarkdown(r) + '<span class="scur" aria-hidden="true"></span>';
+  S.streamEl.innerHTML = renderMarkdown(text) + '<span class="streaming-cursor"></span>';
   S.streamEl.querySelectorAll('pre code').forEach(b => { hljs.highlightElement(b); addCodeHeader(b); });
 }
 
-function finalise(r, usage) {
-  if (S.streamEl && r) {
-    S.streamEl.innerHTML = renderMarkdown(r);
-    S.streamEl.querySelectorAll('pre code').forEach(b => { hljs.highlightElement(b); addCodeHeader(b); });
-    S.msgHistory.push({ role: 'assistant', content: r });
-  }
-  if (usage && S.tbEl) S.tbEl.textContent = `${usage.input + usage.output} tok`;
-  document.querySelectorAll('.ma-btn.regen').forEach(b => b.remove());
-  if (S.currentAiMsg) {
-    const actions = S.currentAiMsg.querySelector('.msg-actions');
+function finalizeMsg(text) {
+  if (!S.streamEl || !text) return;
+  S.streamEl.innerHTML = renderMarkdown(text);
+  S.streamEl.querySelectorAll('pre code').forEach(b => { hljs.highlightElement(b); addCodeHeader(b); });
+  S.msgHistory.push({ role: 'assistant', content: text });
+  const last = $('messageList').lastElementChild;
+  if (last) {
+    const actions = last.querySelector('.msg-actions');
     if (actions) {
-      actions.insertAdjacentHTML('beforeend', `<button class="ma-btn regen" onclick="regenerate()" aria-label="Regenerate response">Regenerate</button>`);
+      actions.insertAdjacentHTML('beforeend',
+        `<button class="btn-msg-action btn-regen" onclick="regenerate()" title="Regenerate" aria-label="Regenerate">${ICONS.regen}</button>`
+      );
     }
-    S.currentAiMsg.querySelectorAll('.prose a').forEach(a => { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer'); });
-    S.currentAiMsg = null;
+    last.querySelectorAll('.prose a').forEach(a => { a.target = '_blank'; a.rel = 'noopener'; });
   }
 }
 
-function showErr(t) {
-  addEl(`<div class="msg ai"><div class="av ai" aria-label="AI"><span aria-hidden="true">\u25c6</span></div><div class="mb"><div class="bub bub-error"><div class="prose" role="alert">${esc(t)}</div></div></div></div>`);
-  if (S.ascroll) scr();
+function showError(text) {
+  addEl(`<div class="msg ai"><div class="av ai">◆</div><div class="bub"><div class="bub-text bub-error"><div class="prose">${esc(text)}</div></div></div></div>`);
+  if (S.ascroll) scr(); else updateScrollBtn();
 }
 
-/* ── Tool cards ────────────────────────────────────────────── */
-function showToolCard(id, name, inputs) {
-  const args = Object.entries(inputs || {}).map(([k, v]) =>
-    `<div class="tar"><span class="tak">${esc(k)}</span><span class="tav">${esc(JSON.stringify(v))}</span></div>`
-  ).join('');
-  addEl(`<div class="tc" id="tc${id}"><div class="tch"><span class="tfn">${esc(name)}</span><span class="tbg run" id="tbg${id}">Running</span></div><div class="tcb" id="tcb${id}">${args || '<div class="tar muted">No arguments</div>'}</div></div>`);
-  if (S.ascroll) scr();
+function addCodeHeader(b) {
+  const pre = b.parentElement;
+  if (pre.querySelector('.code-header')) return;
+  const lang = (b.className.match(/language-(\w+)/) || [])[1] || 'code';
+  const h = document.createElement('div');
+  h.className = 'code-header';
+  h.innerHTML = `<span>${lang}</span><button class="btn-copy-code" onclick="copyCode(this)">Copy</button>`;
+  pre.insertBefore(h, b);
 }
 
-function updateToolCard(id, res, name) {
-  const bg = document.getElementById('tbg' + id);
-  if (bg) { bg.textContent = 'Done'; bg.classList.remove('run'); bg.classList.add('done'); }
-  const cb = document.getElementById('tcb' + id);
-  if (!cb) return;
-  let disp = res;
-  try { const p = JSON.parse(res); disp = JSON.stringify(p, null, 0); if (disp.length > 200) disp = disp.slice(0, 200) + '\u2026'; } catch (_) {}
-  cb.insertAdjacentHTML('beforeend', `<div class="tdiv"></div><div class="trr"><span class="tra">result</span><span class="trv">${esc(disp)}</span></div>`);
-  if (S.ascroll) scr();
+function copyCode(btn) {
+  const code = btn.closest('pre').querySelector('code');
+  if (!code) return;
+  navigator.clipboard.writeText(code.textContent).then(() => {
+    btn.textContent = 'Copied!';
+    showToast('Code copied');
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  }).catch(() => {});
 }
 
-/* ── Components ─────────────────────────────────────────────── */
-function showComponent(name, html) {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'comp-card';
-  const bodyId = 'cb-' + Date.now();
-  wrapper.innerHTML = `<div class="comp-head"><span class="comp-name">${esc(name)}</span><span class="comp-badge">Component</span></div><div class="comp-body" id="${bodyId}"></div>`;
-  mlist().appendChild(wrapper);
-  const body = document.getElementById(bodyId);
-  try { body.appendChild(document.createRange().createContextualFragment(html)); } catch (_) { body.innerHTML = html; }
-  if (S.ascroll) scr();
-}
-
-function showToolsPanel(tools) {
-  if (!tools || !tools.length) return;
-  document.getElementById('sbTools').style.display = 'block';
-  document.getElementById('toolsCount').textContent = tools.length;
-  document.getElementById('toolsList').innerHTML = tools.map(t =>
-    `<div class="tool-item"><div class="tool-item-dot" aria-hidden="true"></div><div><div class="tool-item-name">${esc(t.name)}</div>${t.description ? `<div class="tool-item-desc">${esc(t.description.slice(0, 70))}${t.description.length > 70 ? '\u2026' : ''}</div>` : ''}</div></div>`
-  ).join('');
-}
-
-function showComponentsPanel(components) {
-  if (!components || !components.length) return;
-  const panel = document.getElementById('sbTools');
-  panel.style.display = 'block';
-  const div = document.createElement('div');
-  div.innerHTML = `<div style="padding:.375rem 1.25rem .1rem;border-top:1px solid var(--border);margin-top:.25rem"><div class="sb-section-label" style="margin-bottom:.25rem">Components</div>` + components.map(c => `<div class="tool-item"><span class="tool-item-icon" style="color:var(--accent)" aria-hidden="true">\u25C8</span><div><div class="tool-item-name" style="color:var(--accent)">${esc(c)}</div></div></div>`).join('') + '</div>';
-  panel.appendChild(div);
-}
-
-/* ── Toasts ─────────────────────────────────────────────────── */
-function showToast(message, icon) {
-  const container = document.getElementById('toastContainer');
-  const icons = { info: '\u2139\ufe0f', success: '\u2705', warning: '\u26a0\ufe0f', error: '\u274c' };
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.innerHTML = `<span class="toast-icon ${icon}">${icons[icon] || icons.info}</span><span>${esc(message)}</span>`;
-  container.appendChild(toast);
-  setTimeout(() => { if (toast.parentNode) toast.remove(); }, 4000);
-}
-
-/* ── Message actions ───────────────────────────────────────── */
-function copyMsg(tid) {
-  const el = document.getElementById(tid);
-  if (!el) return;
-  const prose = el.querySelector('.prose');
+function copyMsg(btn) {
+  const prose = btn.closest('.msg').querySelector('.prose');
   if (!prose) return;
   const text = prose.innerText;
-  const done = () => {
-    const btn = el.querySelector('.ma-btn');
-    if (btn) { btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 1800); }
-  };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
-  } else {
-    fallbackCopy(text, done);
-  }
-}
-
-function fallbackCopy(text, done) {
-  try {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.left = '-9999px';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    if (done) done();
-  } catch (_) {
-    showToast('Could not copy to clipboard', 'warning');
-  }
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Copied to clipboard');
+  }).catch(() => {});
 }
 
 function regenerate() {
-  if (S.streaming) {
-    showToast('Wait for the current response to finish', 'warning');
-    return;
-  }
-  if (!S.connected) {
-    showToast('Not connected — reconnecting…', 'warning');
-    connect(true);
-    return;
-  }
-  const list = mlist();
-  let child = list.lastElementChild;
-  while (child) {
-    const prev = child.previousElementSibling;
-    if (child.classList.contains('msg') && child.classList.contains('user')) break;
-    child.remove();
-    child = prev;
+  if (S.streaming) return;
+  const list = $('messageList');
+  let el = list.lastElementChild;
+  while (el) {
+    const prev = el.previousElementSibling;
+    if (el.classList.contains('msg') && el.classList.contains('user')) break;
+    el.remove();
+    el = prev;
   }
   if (S.msgHistory.length && S.msgHistory[S.msgHistory.length - 1].role === 'assistant') S.msgHistory.pop();
-  // Ensure server history matches before regenerate (e.g. after loading a past chat).
-  syncServerHistory(S.msgHistory);
-  if (!ws({ action: 'regenerate' })) {
-    showToast('Not connected — try again in a moment', 'warning');
-  }
+  syncHistory(S.msgHistory);
+  ws({ action: 'regenerate' });
 }
 
-/* ── Input ─────────────────────────────────────────────────── */
 function sendMsg() {
-  const inp = document.getElementById('ci');
-  const t = inp.value.trim();
-  if (!t || S.streaming) return;
+  const input = $('input');
+  const text = input.value.trim();
+  if (!text || S.streaming) return;
   if (!S.connected) {
-    showToast('Not connected — reconnecting…', 'warning');
-    connect(true);
+    showToast("You're offline. Reconnect and try again.", 'error');
     return;
   }
-  const maxChars = S.maxMessageChars || 12000;
-  if (t.length > maxChars) {
-    showToast(`Message too long (max ${maxChars.toLocaleString()} characters)`, 'warning');
+  showWelcome(false);
+  const userEl = appendUser(text);
+  S.msgHistory.push({ role: 'user', content: text });
+  input.value = ''; input.style.height = 'auto';
+  updateComposerState();
+  const sent = ws({ action: 'chat', message: text });
+  if (!sent) {
+    if (userEl) userEl.remove();
+    S.msgHistory.pop();
+    input.value = text;
+    updateComposerState();
+    showToast('Message could not be sent. Please try again.', 'error');
+    focusInput();
     return;
   }
-  document.getElementById('welcome').style.display = 'none';
-  appendUser(t);
-  S.msgHistory.push({ role: 'user', content: t });
-  inp.value = ''; inp.style.height = 'auto';
-  updateCharHint();
-  if (!ws({ action: 'chat', message: t })) {
-    showToast('Message could not be sent — connection lost', 'error');
-    S.streaming = false;
-    setInput(true);
-  }
+  updateScrollBtn();
 }
 
-function chip(t) {
-  if (S.streaming) {
-    showToast('Wait for the current response to finish', 'warning');
-    return;
-  }
-  document.getElementById('ci').value = t;
-  updateCharHint();
+function chipClick(text) {
+  $('input').value = text;
+  updateComposerState();
   sendMsg();
 }
 
-function setInput(on) {
-  const i = document.getElementById('ci');
-  const b = document.getElementById('sb2');
-  const s = document.getElementById('stb');
-  i.disabled = !on;
-  b.disabled = !on;
-  s.classList.toggle('vis', !on);
-  b.setAttribute('aria-disabled', String(!on));
+function updateComposerState() {
+  const input = $('input'), sendBtn = $('sendBtn');
+  if (!input || !sendBtn) return;
+  const hasText = input.value.trim().length > 0;
+  const canSend = !S.streaming && S.connected && hasText;
+  sendBtn.disabled = !canSend;
+  sendBtn.classList.toggle('ready', canSend);
 }
 
-function focusI() {
-  const i = document.getElementById('ci');
-  if (i && !i.disabled) i.focus();
+function setInput(enabled) {
+  $('input').disabled = !enabled;
+  $('stopBtn').classList.toggle('visible', !enabled);
+  updateComposerState();
 }
 
-function stopGen() {
-  ws({ action: 'stop' });
-  // Server will emit `stopped`; keep UI responsive if it never arrives.
-  if (S.streaming) {
-    setTimeout(() => {
-      if (S.streaming) {
-        S.streaming = false;
-        setInput(true);
-        focusI();
-      }
-    }, 2500);
-  }
+function focusInput() { const i = $('input'); if (i && !i.disabled) i.focus(); }
+
+function showWelcome(show) {
+  $('welcome').style.display = show ? 'flex' : 'none';
 }
 
-function updateCharHint() {
-  const hint = document.getElementById('charHint');
-  if (!hint) return;
-  const len = (document.getElementById('ci').value || '').length;
-  const max = S.maxMessageChars || 12000;
-  if (len > max * 0.85) {
-    hint.hidden = false;
-    hint.textContent = `${len.toLocaleString()} / ${max.toLocaleString()}`;
-    hint.classList.toggle('over', len > max);
-  } else {
-    hint.hidden = true;
-  }
+function loadConvsFromStorage() {
+  try {
+    const raw = localStorage.getItem('convs');
+    S.convs = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(S.convs)) S.convs = [];
+  } catch (_) { S.convs = []; }
 }
 
-/* ── Conversations ─────────────────────────────────────────── */
 function saveConv() {
   if (!S.msgHistory.length) return;
   const id = S.aid || String(Date.now()); S.aid = id;
   const first = S.msgHistory.find(m => m.role === 'user');
-  const title = ((first && first.content) || 'New conversation').slice(0, 50);
+  const title = ((first && first.content) || 'New chat').slice(0, 50);
   const idx = S.convs.findIndex(c => c.id === id);
   const cv = { id, title, updatedAt: Date.now() };
   if (idx >= 0) S.convs[idx] = cv; else S.convs.unshift(cv);
-  if (S.convs.length > 50) {
-    S.convs.slice(50).forEach(old => localStorage.removeItem('cui_msgs_' + old.id));
-    S.convs = S.convs.slice(0, 50);
-  }
+  if (S.convs.length > 50) { S.convs.slice(50).forEach(o => localStorage.removeItem('msgs_' + o.id)); S.convs = S.convs.slice(0, 50); }
   try {
-    localStorage.setItem('cui3', JSON.stringify(S.convs));
-    localStorage.setItem('cui_msgs_' + id, JSON.stringify(S.msgHistory));
+    localStorage.setItem('convs', JSON.stringify(S.convs));
+    localStorage.setItem('msgs_' + id, JSON.stringify(S.msgHistory));
   } catch (_) {}
   renderConvs();
+  renderTabs();
 }
 
 function renderConvs() {
-  const el = document.getElementById('convList');
+  const el = $('convList');
   if (!S.convs.length) {
-    el.innerHTML = '<div class="sb-empty"><div class="sb-empty-title">No chats yet</div><div class="sb-empty-sub">Start a conversation \u2014 it will show up here so you can return later.</div></div>';
+    el.innerHTML = '<div class="conv-empty">Start a conversation — it will appear here.</div>';
     return;
   }
   el.innerHTML = S.convs.map(c =>
-    `<div class="cv${c.id === S.aid ? ' active' : ''}" onclick="loadConv('${c.id}')">${esc(c.title)}<button class="cv-del-btn" onclick="event.stopPropagation();deleteConv('${c.id}')" aria-label="Delete conversation">&times;</button></div>`
+    `<div class="conv-item${c.id === S.aid ? ' active' : ''}" onclick="loadConv('${c.id}')">` +
+    `<span class="conv-item-title">${esc(c.title)}</span>` +
+    `<span class="conv-item-time">${relTime(c.updatedAt)}</span>` +
+    `<button class="conv-item-delete" onclick="deleteConv('${c.id}', event)" aria-label="Delete chat">&times;</button>` +
+    `</div>`
   ).join('');
 }
 
-function renderHistoryMessages(msgs) {
-  mlist().innerHTML = '';
-  (msgs || []).forEach(m => {
-    if (m.role === 'user') appendUser(m.content || '');
-    else if (m.role === 'assistant') {
-      const tid = 'hist' + Math.random().toString(36).slice(2, 9);
-      addEl(`<div class="msg ai" id="${tid}"><div class="av ai" aria-label="AI"><span aria-hidden="true">\u25c6</span></div><div class="mb"><div class="bub"><div class="prose"></div></div><div class="mmeta"><span class="mt"></span></div>
-        <div class="msg-actions">
-          <button class="ma-btn" onclick="copyMsg('${tid}')" aria-label="Copy message">Copy</button>
-        </div>
-      </div></div>`);
-      const prose = document.getElementById(tid).querySelector('.prose');
-      prose.innerHTML = renderMarkdown(m.content || '');
-      prose.querySelectorAll('pre code').forEach(b => { hljs.highlightElement(b); addCodeHeader(b); });
-      prose.querySelectorAll('a').forEach(a => { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer'); });
-    }
-  });
-}
-
 function loadConv(id) {
-  if (S.streaming) {
-    showToast('Wait for the current response to finish', 'warning');
-    return;
-  }
+  if (S.streaming) return;
   let msgs = [];
-  try { msgs = JSON.parse(localStorage.getItem('cui_msgs_' + id) || '[]'); } catch (_) { msgs = []; }
+  try { msgs = JSON.parse(localStorage.getItem('msgs_' + id) || '[]'); } catch (_) {}
   S.aid = id;
   S.msgHistory = Array.isArray(msgs) ? msgs : [];
-  document.getElementById('welcome').style.display = S.msgHistory.length ? 'none' : 'flex';
-  renderHistoryMessages(S.msgHistory);
-  // Restore server-side context so the model can continue this conversation.
-  syncServerHistory(S.msgHistory);
+  showWelcome(!S.msgHistory.length);
+  renderHistory(S.msgHistory);
+  syncHistory(S.msgHistory);
   renderConvs();
-  if (S.ascroll) scr();
-  focusI();
-  toggleSidebar(false);
+  renderTabs();
+  scr();
+  closeSidebar();
 }
 
-function deleteConv(id) {
-  S.convs = S.convs.filter(c => c.id !== id);
-  try {
-    localStorage.setItem('cui3', JSON.stringify(S.convs));
-    localStorage.removeItem('cui_msgs_' + id);
-  } catch (_) {}
-  if (S.aid === id) newChat();
-  else renderConvs();
+function renderHistory(msgs) {
+  $('messageList').innerHTML = '';
+  const list = msgs || [];
+  list.forEach((m, i) => {
+    if (m.role === 'user') appendUser(m.content || '');
+    else if (m.role === 'assistant') {
+      const isLast = i === list.length - 1;
+      const id = 'h' + Math.random().toString(36).slice(2, 9);
+      addEl(`<div class="msg ai" id="${id}"><div class="av ai">◆</div><div class="bub"><div class="bub-text"><div class="prose"></div></div><div class="msg-meta"><span class="msg-time"></span></div>${msgActionsHtml(isLast)}</div></div>`);
+      const prose = $(id).querySelector('.prose');
+      prose.innerHTML = renderMarkdown(m.content || '');
+      prose.querySelectorAll('pre code').forEach(b => { hljs.highlightElement(b); addCodeHeader(b); });
+      prose.querySelectorAll('a').forEach(a => { a.target = '_blank'; a.rel = 'noopener'; });
+    }
+  });
+  updateScrollBtn();
 }
 
 function newChat() {
   if (S.streaming) stopGen();
   S.aid = null; S.msgHistory = [];
-  mlist().innerHTML = '';
-  document.getElementById('welcome').style.display = 'flex';
-  syncServerHistory([]);
+  $('messageList').innerHTML = '';
+  showWelcome(true);
+  syncHistory([]);
   renderConvs();
-  focusI();
-  toggleSidebar(false);
+  renderTabs();
+  updateScrollBtn();
+  focusInput();
+  closeSidebar();
 }
 
-/* ── Themes & settings ─────────────────────────────────────── */
-function applyTheme(name) {
-  const theme = THEME_DATA[name];
-  if (!theme) return;
-  const root = document.documentElement;
-  Object.entries(theme).forEach(([k, v]) => {
-    if (k !== 'mode') root.style.setProperty(k, v);
+function deleteConv(id, e) {
+  if (e) e.stopPropagation();
+  S.convs = S.convs.filter(c => c.id !== id);
+  try {
+    localStorage.setItem('convs', JSON.stringify(S.convs));
+    localStorage.removeItem('msgs_' + id);
+  } catch (_) {}
+  if (S.aid === id) newChat();
+  else { renderConvs(); renderTabs(); }
+}
+
+function renderTabs() {
+  if (S.layout !== 'tabs') return;
+  const list = $('tabList');
+  if (!list) return;
+  const items = S.convs.slice(0, 8).map(c => {
+    const active = c.id === S.aid;
+    return `<div class="tab-item${active ? ' active' : ''}" onclick="loadConv('${c.id}')">` +
+      `<span class="tab-item-title">${esc(c.title)}</span>` +
+      `<button class="tab-close" onclick="deleteConv('${c.id}', event)">&times;</button></div>`;
   });
+  if (!S.aid && !S.msgHistory.length) {
+    items.unshift('<div class="tab-item active"><span class="tab-item-title">New chat</span></div>');
+  }
+  list.innerHTML = items.join('');
+}
+
+function applyTheme(name) {
+  const theme = S.themeData[name];
+  if (!theme) return;
+  Object.entries(theme).forEach(([k, v]) => { if (k !== 'mode') document.documentElement.style.setProperty(k, v); });
   document.body.classList.toggle('mode-light', theme.mode === 'light');
   document.body.classList.toggle('mode-dark', theme.mode === 'dark');
-  const sel = document.getElementById('themeSelect');
-  if (sel) sel.value = name;
-  localStorage.setItem('cui_theme', name);
-}
-
-function initThemeDots() {
-  const sel = document.getElementById('themeSelect');
-  if (!sel) return;
-  sel.innerHTML = '';
-  Object.keys(THEME_DATA).forEach(name => {
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = THEME_LABELS[name] || name;
-    if (name === ACTIVE_THEME) opt.selected = true;
-    sel.appendChild(opt);
-  });
-  sel.addEventListener('change', () => applyTheme(sel.value));
-  const saved = localStorage.getItem('cui_theme');
-  if (saved && THEME_DATA[saved]) applyTheme(saved);
-  else applyTheme(ACTIVE_THEME);
+  $('themeSelect').value = name;
+  localStorage.setItem('theme', name);
 }
 
 function setFont(type) {
-  const FONTS = {
-    sans:  { sans: "'Sora', system-ui, sans-serif",           mono: "'JetBrains Mono', monospace" },
-    serif: { sans: "'Cormorant Garamond', Georgia, serif",     mono: "'JetBrains Mono', monospace" },
-    mono:  { sans: "'JetBrains Mono', monospace",              mono: "'JetBrains Mono', monospace" },
+  const f = {
+    sans: { sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif', mono: 'ui-monospace, "SF Mono", "Cascadia Code", "Fira Code", Consolas, "Liberation Mono", monospace' },
+    serif: { sans: '"Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif', mono: 'ui-monospace, "SF Mono", "Cascadia Code", "Fira Code", Consolas, "Liberation Mono", monospace' },
+    mono: { sans: 'ui-monospace, "SF Mono", "Cascadia Code", "Fira Code", Consolas, "Liberation Mono", monospace', mono: 'ui-monospace, "SF Mono", "Cascadia Code", "Fira Code", Consolas, "Liberation Mono", monospace' },
   };
-  const picked = FONTS[type] || FONTS.sans;
-  document.documentElement.style.setProperty('--font-sans', picked.sans);
-  document.documentElement.style.setProperty('--font-mono', picked.mono);
-  document.querySelectorAll('.font-opt').forEach(b => {
-    const active = b.dataset.font === type;
-    b.classList.toggle('active', active);
-    b.setAttribute('aria-pressed', String(active));
-  });
-  localStorage.setItem('cui_font', type);
+  const p = f[type] || f.sans;
+  document.documentElement.style.setProperty('--font-sans', p.sans);
+  document.documentElement.style.setProperty('--font-mono', p.mono);
+  document.querySelectorAll('.font-opt').forEach(b => { b.classList.toggle('active', b.dataset.font === type); });
+  localStorage.setItem('font', type);
 }
 
-function setSize(size) {
-  const SIZES = { sm: '14px', md: '15.5px', lg: '17px' };
-  document.documentElement.style.setProperty('--font-size-base', SIZES[size] || '15.5px');
-  document.querySelectorAll('.size-opt').forEach(b => {
-    const active = b.dataset.size === size;
-    b.classList.toggle('active', active);
-    b.setAttribute('aria-pressed', String(active));
-  });
-  localStorage.setItem('cui_size', size);
-}
+function stopGen() { ws({ action: 'stop' }); }
 
-/* ── Init welcome ──────────────────────────────────────────── */
-function initWelcome() {
-  const sub = document.getElementById('welcomeSub');
-  if (sub) {
-    const txt = SUBTITLE_TEXT;
-    if (txt) sub.textContent = txt;
-    else sub.style.display = 'none';
-  }
-  const chipsData = CHIPS_DATA;
-  const row = document.getElementById('chipsRow');
-  if (row && chipsData && chipsData.length) {
-    row.innerHTML = chipsData.map(c =>
-      `<button class="chip" onclick="chip(${JSON.stringify(c)})">${esc(c)}</button>`
-    ).join('');
-  } else if (row) {
-    row.style.display = 'none';
-  }
-}
-
-/* ── System prompt ─────────────────────────────────────────── */
-function toggleSys() {
-  const panel = document.getElementById('sysPanel');
-  const btn = document.getElementById('sysBtn');
-  const open = !panel.classList.contains('open');
-  panel.classList.toggle('open', open);
-  panel.setAttribute('aria-hidden', String(!open));
-  if (btn) {
-    btn.setAttribute('aria-expanded', String(open));
-    btn.setAttribute('aria-label', open ? 'Close settings' : 'Open settings');
-  }
-  if (open) {
-    const sel = document.getElementById('themeSelect');
-    if (sel) sel.focus();
-  }
-}
-
-function applySystemPromptVisibility() {
-  const block = document.getElementById('sysPromptBlock');
-  if (!block) return;
-  block.hidden = !S.allowSystemPrompt;
-}
-
-function saveSystem() {
-  if (!S.allowSystemPrompt) {
-    showToast('System prompt editing is disabled for this app', 'warning');
-    return;
-  }
-  const p = document.getElementById('sysTa').value.trim();
-  if (!ws({ action: 'update_system', prompt: p })) {
-    showToast('Not connected', 'error');
-    return;
-  }
-  const panel = document.getElementById('sysPanel');
-  const btn = document.getElementById('sysBtn');
-  panel.classList.remove('open');
-  panel.setAttribute('aria-hidden', 'true');
-  if (btn) {
-    btn.setAttribute('aria-expanded', 'false');
-    btn.setAttribute('aria-label', 'Open settings');
-  }
-  showToast(
-    p ? 'System prompt applied \u2014 starting a fresh chat' : 'System prompt reset to default \u2014 starting a fresh chat',
-    'success'
-  );
-  newChat();
-}
-
-/* ── Export / import ───────────────────────────────────────── */
-function exportConv() {
-  if (!S.msgHistory.length) {
-    showToast('Nothing to export yet', 'info');
-    return;
-  }
-  const md = `# ChatUI Export\n${new Date().toLocaleString()}\n\n---\n\n` +
-    S.msgHistory.map(m => `## ${m.role === 'user' ? 'You' : 'AI'}\n\n${m.content}`).join('\n\n---\n\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown' }));
-  a.download = `chatui-${Date.now()}.md`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-  showToast('Conversation exported', 'success');
-}
-
-function importConv() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.md,.txt';
-  input.onchange = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      showToast('Import file too large (max 2 MB)', 'error');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const text = String(ev.target.result || '');
-      const msgs = parseExportedMarkdown(text);
-      if (!msgs.length) {
-        showToast('Could not parse conversation from file', 'warning');
-        return;
-      }
-      if (S.streaming) stopGen();
-      S.aid = null;
-      S.msgHistory = msgs;
-      document.getElementById('welcome').style.display = 'none';
-      renderHistoryMessages(msgs);
-      syncServerHistory(msgs);
-      saveConv();
-      showToast('Imported ' + msgs.length + ' messages', 'success');
-      focusI();
-    };
-    reader.readAsText(file);
-  };
-  input.click();
-}
-
-function parseExportedMarkdown(text) {
-  const parts = text.split(/\n---\n/).map(s => s.trim()).filter(Boolean);
-  const msgs = [];
-  for (const part of parts) {
-    const m = part.match(/^##\s+(You|AI)\s*\n+([\s\S]*)$/i);
-    if (!m) continue;
-    msgs.push({
-      role: m[1].toLowerCase() === 'you' ? 'user' : 'assistant',
-      content: m[2].trim(),
-    });
-  }
-  return msgs;
-}
-
-/* ── Mobile sidebar ────────────────────────────────────────── */
 function toggleSidebar(force) {
-  const sidebar = document.getElementById('sidebar');
-  const backdrop = document.getElementById('sbBackdrop');
-  const menuBtn = document.getElementById('menuBtn');
-  const open = typeof force === 'boolean' ? force : !sidebar.classList.contains('open');
-  sidebar.classList.toggle('open', open);
-  backdrop.classList.toggle('open', open);
-  if (open) backdrop.removeAttribute('hidden');
-  else backdrop.setAttribute('hidden', '');
-  if (menuBtn) {
-    menuBtn.setAttribute('aria-expanded', String(open));
-    menuBtn.setAttribute('aria-label', open ? 'Close sidebar menu' : 'Open sidebar menu');
-  }
-  document.body.classList.toggle('sidebar-open', open);
+  const s = $('sidebar');
+  const open = typeof force === 'boolean' ? force : !s.classList.contains('open');
+  s.classList.toggle('open', open);
 }
 
-/* ── Init ───────────────────────────────────────────────────── */
-document.addEventListener('DOMContentLoaded', () => {
+function closeSidebar() {
+  if (window.innerWidth <= 768 || S.layout === 'tabs') toggleSidebar(false);
+}
+
+function openSettings() {
+  $('settingsOverlay').hidden = false;
+  $('settingsPanel').hidden = false;
+}
+
+function closeSettings() {
+  $('settingsOverlay').hidden = true;
+  $('settingsPanel').hidden = true;
+}
+
+function init() {
+  loadConvsFromStorage();
   connect();
   renderConvs();
-  initThemeDots();
-  initWelcome();
-  const foot = document.getElementById('sbFootText');
-  if (foot) foot.textContent = 'ChatUI';
+  renderTabs();
+  showWelcome(true);
 
-  document.querySelectorAll('.font-opt').forEach(btn =>
-    btn.addEventListener('click', () => setFont(btn.dataset.font))
-  );
-  document.querySelectorAll('.size-opt').forEach(btn =>
-    btn.addEventListener('click', () => setSize(btn.dataset.size))
-  );
+  $('themeSelect').innerHTML = Object.keys(S.themeData).map(n =>
+    `<option value="${n}"${n === S.activeTheme ? ' selected' : ''}>${n.charAt(0).toUpperCase() + n.slice(1)}</option>`
+  ).join('');
+  const savedTheme = localStorage.getItem('theme');
+  applyTheme(savedTheme && S.themeData[savedTheme] ? savedTheme : S.activeTheme);
 
-  const savedFont = localStorage.getItem('cui_font');
-  const savedSize = localStorage.getItem('cui_size');
+  const savedFont = localStorage.getItem('font');
   if (savedFont) setFont(savedFont);
-  if (savedSize) setSize(savedSize);
 
-  const inp = document.getElementById('ci');
-  inp.addEventListener('keydown', e => {
+  $('sendBtn').addEventListener('click', sendMsg);
+  $('stopBtn').addEventListener('click', stopGen);
+  $('newBtn').addEventListener('click', newChat);
+  $('settingsBtn').addEventListener('click', openSettings);
+  $('settingsClose').addEventListener('click', closeSettings);
+  $('settingsOverlay').addEventListener('click', closeSettings);
+  $('menuBtn').addEventListener('click', () => toggleSidebar());
+  $('tabNewBtn').addEventListener('click', newChat);
+  $('tabMenuBtn').addEventListener('click', () => toggleSidebar());
+  $('themeSelect').addEventListener('change', e => applyTheme(e.target.value));
+  document.querySelectorAll('.font-opt').forEach(b => b.addEventListener('click', () => setFont(b.dataset.font)));
+
+  const connRetry = $('connRetry');
+  if (connRetry) connRetry.addEventListener('click', () => connect(true));
+
+  const scrollBtn = $('scrollBtn');
+  if (scrollBtn) scrollBtn.addEventListener('click', scr);
+
+  const input = $('input');
+  input.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
     if (e.key === 'Escape' && S.streaming) { e.preventDefault(); stopGen(); }
   });
-  inp.addEventListener('input', e => {
-    e.target.style.height = 'auto';
-    e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px';
-    updateCharHint();
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 150) + 'px';
+    updateComposerState();
   });
-  applySystemPromptVisibility();
 
-  document.getElementById('sb2').addEventListener('click', sendMsg);
-  document.getElementById('stb').addEventListener('click', stopGen);
-  document.getElementById('newBtn').addEventListener('click', newChat);
-  document.getElementById('sysBtn').addEventListener('click', toggleSys);
-  document.getElementById('sysSave').addEventListener('click', saveSystem);
-  document.getElementById('expBtn').addEventListener('click', exportConv);
-  document.getElementById('impBtn').addEventListener('click', importConv);
-  document.getElementById('menuBtn').addEventListener('click', toggleSidebar);
-  document.getElementById('sbBackdrop').addEventListener('click', toggleSidebar);
-  document.getElementById('mwrap').addEventListener('scroll', () => {
-    const c = document.getElementById('mwrap');
-    S.ascroll = (c.scrollHeight - c.scrollTop - c.clientHeight < 80);
-    updateJumpBtn();
-  });
-  const jumpBtn = document.getElementById('jumpLatest');
-  if (jumpBtn) jumpBtn.addEventListener('click', () => scr());
+  const chipsData = CHIPS_DATA;
+  const chipsRow = $('chipsRow');
+  if (chipsRow && chipsData && chipsData.length) {
+    chipsRow.innerHTML = chipsData.map(c =>
+      `<button class="chip" onclick="chipClick(${JSON.stringify(c)})">${esc(c)}</button>`
+    ).join('');
+  }
+
+  $('messages').addEventListener('scroll', updateScrollBtn);
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      const sidebar = document.getElementById('sidebar');
-      if (sidebar && sidebar.classList.contains('open')) {
-        e.preventDefault();
-        toggleSidebar(false);
-        return;
-      }
-      const panel = document.getElementById('sysPanel');
-      if (panel && panel.classList.contains('open')) {
-        e.preventDefault();
-        toggleSys();
-        return;
-      }
+      if (!$('settingsPanel').hidden) { closeSettings(); return; }
+      if (window.innerWidth <= 768 || S.layout === 'tabs') { closeSidebar(); return; }
     }
-    if (e.ctrlKey || e.metaKey) {
-      if (e.key === 'k') { e.preventDefault(); toggleSidebar(); }
-      if (e.key === 'n' && !S.streaming) { e.preventDefault(); newChat(); }
-    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); toggleSidebar(); }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'O') { e.preventDefault(); newChat(); }
   });
 
-  focusI();
-});
+  if (SUBTITLE_TEXT) $('welcomeSub').textContent = SUBTITLE_TEXT;
+  updateComposerState();
+  focusInput();
+}
+
+document.addEventListener('DOMContentLoaded', init);

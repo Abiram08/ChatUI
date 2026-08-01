@@ -2,163 +2,127 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1a1a2e">
-<meta name="color-scheme" content="light dark">
 <title>{{TITLE}}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="vendor/marked.min.js"></script>
 <script src="vendor/purify.min.js"></script>
 <link rel="stylesheet" href="vendor/github-dark.min.css">
 <script src="vendor/highlight.min.js"></script>
-<style>
-/*{{STYLES}}*/
-</style>
+<style>/*{{STYLES}}*/</style>
 </head>
-<body>
-<a class="skip-link" href="#ci">Skip to message input</a>
-<button class="menu-btn" id="menuBtn" aria-label="Open sidebar menu" title="Menu" aria-controls="sidebar" aria-expanded="false">
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-</button>
-<div class="sidebar-backdrop" id="sbBackdrop" hidden></div>
-<div class="conn-banner" id="connBanner" role="alert" aria-live="assertive" tabindex="-1">Connection lost — reconnecting automatically…</div>
+<body class="layout-{{LAYOUT}}">
+<div class="conn-banner" id="connBanner">
+  <span class="conn-banner-text">Connection lost — reconnecting…</span>
+  <button class="conn-retry" id="connRetry" type="button">Retry now</button>
+</div>
 
 <div class="app">
-  <aside class="sidebar" id="sidebar" role="navigation" aria-label="Chat sidebar">
-    <div class="sb-head">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
       <div class="logo">
-        <div class="logo-mark" aria-hidden="true">{{LOGO}}</div>
+        <div class="logo-icon">{{LOGO}}</div>
         <span class="logo-text">{{TITLE}}</span>
       </div>
-      <div class="model-badge" id="modelBadge" title="Provider status" role="status" aria-live="polite">
-        <span id="st">Connecting…</span>
-      </div>
-      <div class="sb-actions">
-        <button class="sb-btn primary" id="newBtn" aria-label="Start new conversation">New chat</button>
-        <button class="sb-btn" id="sysBtn" aria-label="Open settings" aria-controls="sysPanel" aria-expanded="false">Settings</button>
-      </div>
+      <button class="btn-new" id="newBtn">+ New chat</button>
     </div>
-
-    <div class="sys-panel" id="sysPanel" aria-hidden="true" role="region" aria-label="Settings">
-      <div class="sys-inner">
-        <div class="setting-block">
-          <label class="sb-section-label" for="themeSelect">Theme</label>
-          <select class="theme-select" id="themeSelect" aria-label="Select color theme"></select>
-        </div>
-        <div class="setting-block">
-          <div class="sb-section-label" id="fontLabel">Typeface</div>
-          <div class="font-opts" role="group" aria-labelledby="fontLabel">
-            <button type="button" class="font-opt active" data-font="sans" aria-pressed="true">Sora</button>
-            <button type="button" class="font-opt" data-font="serif" aria-pressed="false">Serif</button>
-            <button type="button" class="font-opt" data-font="mono" aria-pressed="false">Mono</button>
-          </div>
-        </div>
-        <div class="setting-block">
-          <div class="sb-section-label" id="sizeLabel">Text size</div>
-          <div class="size-opts" role="group" aria-labelledby="sizeLabel">
-            <button type="button" class="size-opt" data-size="sm" aria-label="Small text" aria-pressed="false">A</button>
-            <button type="button" class="size-opt active" data-size="md" aria-label="Medium text" aria-pressed="true">A</button>
-            <button type="button" class="size-opt" data-size="lg" aria-label="Large text" aria-pressed="false">A</button>
-          </div>
-        </div>
-        <div class="setting-block" id="sysPromptBlock" hidden>
-          <label class="sb-section-label" for="sysTa">System prompt</label>
-          <textarea class="sys-ta" id="sysTa" placeholder="You are a helpful assistant… (leave empty to reset)" aria-label="System prompt"></textarea>
-          <button type="button" class="sys-save" id="sysSave">Apply prompt</button>
-          <p class="sys-hint">Applies to this session only and starts a new chat. Leave empty to restore the app default.</p>
-        </div>
-      </div>
+    <div class="conversations" id="convList">
+      <div class="conv-empty">No chats yet</div>
     </div>
-
-    <div class="sb-tools" id="sbTools" style="display:none" role="region" aria-label="Available tools">
-      <div class="sb-tools-head">
-        <div class="sb-section-label" id="toolsLabel">Tools</div>
-        <span class="tools-count" id="toolsCount" aria-labelledby="toolsLabel"></span>
-      </div>
-      <div id="toolsList"></div>
-    </div>
-
-    <div class="sb-convs" id="convList" role="list" aria-label="Past conversations">
-      <div class="sb-empty">
-        <div class="sb-empty-title">No chats yet</div>
-        <div class="sb-empty-sub">Start a conversation — it will show up here so you can return later.</div>
-      </div>
-    </div>
-
-    <div class="sb-foot">
-      <span class="sb-foot-text" id="sbFootText">ChatUI</span>
-      <div class="sb-foot-actions">
-        <button type="button" class="ib" id="impBtn" title="Import conversation" aria-label="Import conversation">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
-        </button>
-        <button type="button" class="ib" id="expBtn" title="Export as Markdown" aria-label="Export conversation as Markdown">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>
-        </button>
-      </div>
+    <div class="sidebar-footer">
+      <button class="btn-settings" id="settingsBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </button>
     </div>
   </aside>
 
-  <main class="main" id="main" role="main">
-    <div class="mwrap" id="mwrap">
-      <div class="welcome" id="welcome" aria-labelledby="welcomeHeading">
-        <div class="welcome-kicker">{{TITLE}}</div>
-        <h1 class="welcome-title" id="welcomeHeading">{{WELCOME_TITLE}}</h1>
-        <div class="welcome-rule" aria-hidden="true"></div>
-        <p class="welcome-sub" id="welcomeSub"></p>
-        <div class="chips" id="chipsRow" role="group" aria-label="Suggested prompts"></div>
-      </div>
-      <div class="mlist" id="mlist" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation"></div>
+  <main class="main">
+    <div class="tab-bar" id="tabBar">
+      <button class="tab-menu" id="tabMenuBtn" aria-label="Menu">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <div class="tab-list" id="tabList"></div>
+      <button class="tab-new" id="tabNewBtn" aria-label="New chat">+</button>
     </div>
 
-    <button type="button" class="jump-latest" id="jumpLatest" hidden aria-label="Jump to latest messages">↓ New messages</button>
+    <header class="chat-header" id="chatHeader">
+      <div class="chat-header-left">
+        <span class="chat-header-title">{{TITLE}}</span>
+      </div>
+      <div class="chat-header-status">
+        <span class="status-dot online" id="statusDot" aria-hidden="true"></span>
+        <span class="status-text" id="statusBadge">Ready</span>
+      </div>
+    </header>
 
-    <div class="ia">
-      <div class="iaw">
-        <div class="iw" role="group" aria-label="Message composer">
-          <textarea id="ci" class="ci" placeholder="Message {{TITLE}}…" rows="1" maxlength="12000" aria-label="Chat input"></textarea>
-          <button class="stb" id="stb" title="Stop generation" aria-label="Stop generating">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
-          </button>
-          <button class="sb2" id="sb2" title="Send message" aria-label="Send message">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
-          </button>
+    <div class="messages" id="messages">
+      <div class="welcome" id="welcome">
+        <div class="welcome-icon">{{LOGO}}</div>
+        <h1 class="welcome-title">{{WELCOME_TITLE}}</h1>
+        <p class="welcome-sub" id="welcomeSub">{{SUBTITLE}}</p>
+        <div class="chips" id="chipsRow"></div>
+      </div>
+      <div class="message-list" id="messageList"></div>
+    </div>
+
+    <button class="scroll-bottom" id="scrollBtn" type="button" aria-label="Scroll to latest" hidden>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
+    </button>
+
+    <div class="composer">
+      <div class="composer-inner">
+        <div class="composer-box">
+          <textarea class="composer-input" id="input" placeholder="Ask anything…" rows="1" maxlength="12000" aria-label="Message input"></textarea>
+          <div class="composer-actions">
+            <button class="btn-stop" id="stopBtn" aria-label="Stop generating" title="Stop (Esc)">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+            </button>
+            <button class="btn-send" id="sendBtn" aria-label="Send message" title="Send (Enter)" disabled>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+            </button>
+          </div>
         </div>
-        <div class="ih">
-          <span><kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline · <kbd>Esc</kbd> stop</span>
-          <span class="char-hint" id="charHint" hidden aria-live="polite"></span>
+        <div class="composer-hint">
+          <span><kbd>Enter</kbd> send &middot; <kbd>Shift</kbd>+<kbd>Enter</kbd> newline &middot; <kbd>Ctrl</kbd>+<kbd>K</kbd> history</span>
         </div>
       </div>
     </div>
   </main>
 </div>
 
-<div class="toast-container" id="toastContainer" aria-live="polite"></div>
+<button class="menu-btn" id="menuBtn" aria-label="Menu">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+</button>
+
+<div class="settings-overlay" id="settingsOverlay" hidden></div>
+<div class="settings-panel" id="settingsPanel" hidden>
+  <button class="settings-close" id="settingsClose">&times;</button>
+  <div class="settings-title">Settings</div>
+  <div class="settings-group">
+    <label class="settings-label">Theme</label>
+    <select class="settings-select" id="themeSelect"></select>
+  </div>
+  <div class="settings-group">
+    <div class="settings-label">Typeface</div>
+    <div class="font-opts">
+      <button class="font-opt active" data-font="sans">Sans</button>
+      <button class="font-opt" data-font="serif">Serif</button>
+      <button class="font-opt" data-font="mono">Mono</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
 
 <script>
-/* Template data — replaced server-side. Must come before external JS. */
 const THEME_DATA   = {{THEMES_JSON}};
 const ACTIVE_THEME = '{{ACTIVE_THEME}}';
-const AUTH_TOKEN   = '';
-const MAX_FILE_MB  = 2;
-const SUBTITLE_TEXT = '{{SUBTITLE}}';
 const CHIPS_DATA   = {{CHIPS_JSON}};
-
-const THEME_LABELS = {};
-Object.keys(THEME_DATA).forEach(name => {
-  THEME_LABELS[name] = name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' ');
-});
-
-function buildWsUrl() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${proto}://${location.host}/ws`;
-}
-const WS_URL = buildWsUrl();
+const LAYOUT       = '{{LAYOUT}}';
+const SUBTITLE_TEXT = '{{SUBTITLE}}';
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
 </script>
-
-<script src="js/markdown.js"></script>
-<script src="js/widgets.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

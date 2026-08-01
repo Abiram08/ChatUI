@@ -1,20 +1,33 @@
 # Changelog
 
-Notable changes to ChatUI. Format inspired by [Keep a Changelog](https://keepachangelog.com/).
+## 0.3.0 (2026-07-29)
 
-## Unreleased
+### Major
+- Complete rewrite: stripped to core (2 layouts, 4 themes, Gradio-like API)
+- Removed: providers system, agent loop, widgets, tools, rate limiter
+- New Cursor-inspired UI design
 
-- Conversation resume: loading past chats restores model context (`set_history`)
-- Better reconnect UX, send/offline toasts, jump-to-latest, form/choice widget fixes
-- Friendlier early-project docs (README, CONTRIBUTING)
-- Removed heavy “full foundation” OSS scaffolding for now
+### Features
+- `chat()` function — one-liner to start a chat UI
+- `ChatUI` class for programmatic use
+- 2 layouts: `sidebar` (default), `tabs`
+- 4 themes: `dark`, `light`, `sepia`, `slate`
+- Streaming support (sync/async generators)
+- Markdown rendering with code highlighting
+- Conversation history in localStorage
+- Settings panel (theme, font switching)
+- Keyboard shortcuts (Enter to send, Ctrl+K for sidebar)
 
-## 0.2.0
+### Engineering
+- FastAPI + WebSocket architecture
+- OKLCH color tokens for perceptual uniformity
+- Modular CSS with manifest-based assembly
+- Pure vanilla JS frontend (no framework)
+- Conversation persistence in browser
 
-- Modular layout: providers, agent loop, runtime, server packages
-- Beginner `chat()` API with plain-function tools
-- Widgets, themes, demos, tests
+## 0.2.0 (2026-06-15)
 
-## 0.1.0
-
-- First beta: FastAPI + WebSocket chat UI, tools, streaming markdown
+- Initial public release
+- Provider system (Groq, OpenAI, Anthropic, Ollama)
+- Widget system (buttons, metrics, tables, etc.)
+- Tool/function calling support
